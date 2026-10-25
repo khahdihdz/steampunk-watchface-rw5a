@@ -7,6 +7,7 @@ Outputs (under --out, default ./dist):
     photo/face.png          flattened 320x385 artwork (custom-photo slot)
     photo/face_rounded.png  same artwork pre-masked to the panel corner radius
     photo/face_night.png    dimmed variant for night / always-on
+    photo/face_alpha.png    RGBA, alpha outside the movement/plates (see-through)
     layers/*.png            separated layers for Mi Watch Face Editor
     preview/preview.png     device mock-up for the README
     preview/rotation.gif    animated preview (giây chạy)
@@ -63,7 +64,7 @@ def render_device_mock(face: Image.Image) -> Image.Image:
     out = sp.radial((w, h), [(0.0, (46, 34, 25)), (0.55, (21, 16, 13)),
                              (1.0, (9, 7, 6))]).convert("RGB")
 
-    for y0, y1 in ((-40, 150), (556, h + 40)):
+    for y0, y1 in ((-40, 150), (524, h + 40)):
         strap = sp.rrect_mask((w, h), (206, y0, 354, y1), 30)
         out.paste((38, 28, 22), (0, 0), strap.split()[3])
         for x in (228, 332):
@@ -73,14 +74,14 @@ def render_device_mock(face: Image.Image) -> Image.Image:
             stitch = line.finish().split()[3].point(lambda v: int(v * 0.55))
             out.paste((26, 19, 15), (0, 0), stitch)
 
-    body = sp.rrect_mask((w, h), (52, 62, 508, 640), 58)
+    body = sp.rrect_mask((w, h), (52, 62, 508, 611), 58)
     shadow = sp.blur(sp.solid(body, (0, 0, 0, 255)), 16)
     out.paste((0, 0, 0), (0, 0), shadow.split()[3].point(lambda v: int(v * 0.75)))
     out.paste(sp.vgrad((w, h), [(0.0, (60, 48, 37)), (0.35, (35, 27, 22)),
                                 (1.0, (14, 10, 9))], top=0.08, bottom=0.94)
               .convert("RGB"), (0, 0), body.split()[3])
 
-    ring = sp.rrect_mask((w, h), (60, 70, 500, 632), 52)
+    ring = sp.rrect_mask((w, h), (60, 70, 500, 603), 52)
     out.paste(sp.vgrad((w, h), [(0.0, sp.hex_rgb("#f6d894")),
                                 (0.18, sp.hex_rgb("#c8963e")),
                                 (0.5, sp.hex_rgb("#6b4519")),
@@ -89,13 +90,13 @@ def render_device_mock(face: Image.Image) -> Image.Image:
                        top=0.10, bottom=0.96).convert("RGB"),
               (0, 0), ring.split()[3])
 
-    inner = sp.rrect_mask((w, h), (72, 82, 488, 620), 44)
+    inner = sp.rrect_mask((w, h), (76, 90, 484, 583), 46)
     out.paste((7, 5, 4), (0, 0), inner.split()[3])
 
-    pos = ((w - face.width) // 2, 157)
-    mask = sp.rrect_mask((face.width, face.height),
-                         (0, 0, face.width, face.height), sp.CORNER_RADIUS)
-    out.paste(face.convert("RGB"), pos, mask.split()[3])
+    screen = face.resize((404, 487), Image.LANCZOS)
+    mask = sp.rrect_mask((404, 487), (0, 0, 404, 487),
+                         sp.CORNER_RADIUS * 404 / 320)
+    out.paste(screen.convert("RGB"), (78, 92), mask.split()[3])
     return out
 
 
@@ -136,22 +137,33 @@ def main(argv=None) -> int:
     rounded.putalpha(sp.screen_mask().split()[3])
     rounded.save(out / "photo" / "face_rounded.png", optimize=True)
 
+    solid = dict(layers)
+    solid.update({
+        "nameplate": sp.nameplate_layer(palette, fonts, opacity=1.0),
+        "led_panel": sp.led_panel_layer(palette, fonts, opacity=1.0),
+        "date_strip": sp.date_strip_layer(palette, fonts, values, opacity=1.0),
+        "complications": sp.complications_layer(palette, fonts, values, opacity=1.0),
+    })
+    clear = sp.compose(solid, palette, fonts, args.time, backdrop=False)
+    clear.save(out / "photo" / "face_alpha.png", optimize=True)
+
     sp.night_variant(face).convert("RGB").save(
         out / "photo" / "face_night.png", optimize=True)
 
     layer_ids = {entry["id"] for entry in sp.LAYOUT["layers"]}
     key_for = {
-        "00_backplate": "backplate", "01_nameplate": "nameplate",
-        "02_led_panel": "led_panel", "04_date_strip": "date_strip",
-        "05_complications": "complications", "20_glass": "glass",
+        "00_backdrop": "backdrop", "01_movement": "movement",
+        "02_crystal": "crystal", "03_nameplate": "nameplate",
+        "04_led_panel": "led_panel", "06_date_strip": "date_strip",
+        "07_complications": "complications", "20_glass": "glass",
     }
     for layer_id, key in key_for.items():
         if layer_id in layer_ids:
             layers[key].save(out / "layers" / f"{layer_id}.png", optimize=True)
 
-    if "03_readout" in layer_ids:
+    if "05_readout" in layer_ids:
         sp.readout_layer(palette, fonts, args.time).save(
-            out / "layers" / "03_readout.png", optimize=True)
+            out / "layers" / "05_readout.png", optimize=True)
 
     if not args.no_preview:
         render_device_mock(face).save(out / "preview" / "preview.png", optimize=True)

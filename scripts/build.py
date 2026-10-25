@@ -31,17 +31,24 @@ import validate
 FIXED_DATE = (1980, 1, 1, 0, 0, 0)
 PACK_NAME = "steampunk-rw5a"
 
-INSTALL_NOTES = """\
-STEAMPUNK LED RW5A — Mặt đồng hồ LED 7 đoạn cho Redmi Watch 5 Active
-===================================================================
+INSTALL_NOTES = """\\
+STEAMPUNK SKELETON LED RW5A — Mặt đồng hồ lộ cơ cho Redmi Watch 5 Active
+=======================================================================
 
 Nội dung gói
 ------------
 photo/face.png          320x385, ảnh phẳng dùng cho tính năng "ảnh mặt đồng hồ"
 photo/face_rounded.png  bản đã bo góc theo viền máy (alpha ngoài góc = 0)
 photo/face_night.png    bản dịu sáng cho ban đêm
-layers/*.png            7 layer rời, cùng hệ toạ độ 320x385
-layout.json             khung LED, thông số 7 đoạn, nhãn phụ, thứ tự z
+photo/face_alpha.png    bản RGBA: nền trong suốt ở khe giữa các bảng
+layers/*.png            9 layer rời, cùng hệ toạ độ 320x385
+layout.json             khung, thông số 7 đoạn, nhãn phụ, thứ tự z
+
+Vì sao "xuyên thấu"
+-------------------
+Bộ máy (cầu, bánh răng, thùng dây cót, bánh lắc, chân kính) nằm ở layer
+01_movement. Kính khói 02_crystal phủ lên trên, các bảng nội dung là kính tối
+đục 87-94% nên vẫn thấy máy móc mờ phía sau, còn số và nhãn thì rõ.
 
 Cách 1 — nhanh nhất (không cần công cụ)
 ---------------------------------------
@@ -51,9 +58,10 @@ Cách 1 — nhanh nhất (không cần công cụ)
 
 Cách 2 — mặt đồng hồ động
 --------------------------
-Dùng layers/ + layout.json trong Mi Watch Face Editor.  Layer 03_readout là
-giờ:phút + giây đã nung sẵn; khi dựng bản động hãy thay nó bằng widget 7 đoạn
-của công cụ (xem docs/mi-watch-face-editor.md).
+Dùng layers/ + layout.json trong Mi Watch Face Editor. Layer 05_readout là
+giờ:phút + giây đã nung sẵn; khi dựng bản động hãy thay bằng widget 7 đoạn
+(xem docs/mi-watch-face-editor.md). Muốn nền thật trong suốt thì bỏ
+00_backdrop và dùng photo/face_alpha.png.
 
 Nhãn giao diện: PIN · BƯỚC CHÂN · NHỊP TIM · GIÂY · thứ/ngày dạng CHỦ NHẬT.
 

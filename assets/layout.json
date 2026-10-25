@@ -1,7 +1,7 @@
 {
   "device": "Redmi Watch 5 Active",
   "codename": "rw5a",
-  "style": "steampunk-led",
+  "style": "steampunk-skeleton-led",
   "canvas": {
     "width": 320,
     "height": 385,
@@ -40,17 +40,17 @@
   },
   "date_strip": {
     "box": [
-      40,
+      64,
       192,
-      280,
+      256,
       226
     ]
   },
   "complications": {
     "plate": [
-      20,
+      26,
       236,
-      300,
+      294,
       356
     ],
     "centers": [
@@ -74,8 +74,8 @@
       "NHỊP TIM"
     ],
     "window": [
-      82,
-      42
+      78,
+      40
     ]
   },
   "sample_values": {
@@ -89,39 +89,54 @@
   },
   "layers": [
     {
-      "id": "00_backplate",
+      "id": "00_backdrop",
       "z": 0,
       "alpha": 255,
-      "animated": false
+      "animated": false,
+      "note": "đáy vỏ: gang tối, đinh tán, vignette (bỏ khi cần nền trong suốt)"
     },
     {
-      "id": "01_nameplate",
+      "id": "01_movement",
       "z": 1,
       "alpha": 255,
-      "animated": false
+      "animated": false,
+      "note": "bộ máy lộ: cầu, bánh răng, thùng dây cót, bánh lắc, chân kính"
     },
     {
-      "id": "02_led_panel",
+      "id": "02_crystal",
       "z": 2,
       "alpha": 255,
+      "animated": false,
+      "note": "kính khói phủ lên bộ máy"
+    },
+    {
+      "id": "03_nameplate",
+      "z": 3,
+      "alpha": 255,
       "animated": false
     },
     {
-      "id": "03_readout",
-      "z": 3,
-      "alpha": 255,
-      "animated": true,
-      "note": "giờ:phút + giây, thay bằng widget 7 đoạn khi dựng bản động"
-    },
-    {
-      "id": "04_date_strip",
+      "id": "04_led_panel",
       "z": 4,
       "alpha": 255,
       "animated": false
     },
     {
-      "id": "05_complications",
+      "id": "05_readout",
       "z": 5,
+      "alpha": 255,
+      "animated": true,
+      "note": "giờ:phút + giây, thay bằng widget 7 đoạn khi dựng bản động"
+    },
+    {
+      "id": "06_date_strip",
+      "z": 6,
+      "alpha": 255,
+      "animated": false
+    },
+    {
+      "id": "07_complications",
+      "z": 7,
       "alpha": 255,
       "animated": false
     },

@@ -1,6 +1,7 @@
-# Steampunk LED RW5A
+# Steampunk Skeleton LED RW5A
 
-Mặt đồng hồ **steampunk LED 7 đoạn**, giao diện tiếng Việt, cho **Redmi Watch 5
+Mặt đồng hồ **steampunk lộ cơ** — nhìn thấy bộ máy bánh răng bên trong qua kính
+khói — dùng **LED 7 đoạn** và **giao diện tiếng Việt**, cho **Redmi Watch 5
 Active** (320 × 385, bo góc theo viền máy). Sinh 100% bằng code, phát hành tự
 động qua GitHub Actions.
 
@@ -28,13 +29,22 @@ artefact là gói thiết kế đã render, không phải APK.
 
 ## Thiết kế
 
-- **LED 7 đoạn** vẽ bằng polygon: 4 chữ số giờ:phút cao 78 px, màu hổ phách
-  `#FFB340`, có quầng sáng 3 lớp và "hot core" sáng hơn ở giữa segment.
-- **Segment chưa sáng** (ghost) vẫn hiện mờ — đúng cảm giác LED thật.
-- Khung đồng thau, đinh tán, bánh răng, vết verdigris, vignette.
-- Giao diện **tiếng Việt**: `GIÂY`, `PIN`, `BƯỚC CHÂN`, `NHỊP TIM`,
-  dải ngày dạng `CHỦ NHẬT · 25/10/2026`.
-- Bo góc 46 px, mọi nội dung nằm trong vùng an toàn.
+**Lộ cơ (skeleton).** Bộ máy nằm ở layer riêng, phía sau kính khói:
+
+- cầu (bridge) vát cạnh có vân xước, ốc thép xanh, chân kính ruby;
+- bánh răng nhiều cỡ ăn khớp nhau, thùng dây cót có lò xo xoắn nhìn thấy được;
+- bánh lắc (balance wheel) có tóc xoắn và 4 ốc vành.
+
+Các bảng nội dung là **kính tối đục 87–94%** nên bộ máy vẫn hiện mờ phía sau,
+còn số và nhãn thì rõ. Riêng `photo/face_alpha.png` là bản **nền trong suốt
+thật** ở khe giữa các bảng.
+
+**LED 7 đoạn vẽ bằng polygon:** 4 chữ số giờ:phút cao 78 px, hổ phách `#FFB340`,
+quầng sáng 3 lớp + ruột sáng; giây `#FF5B3A`. Segment chưa sáng vẫn hiện mờ —
+đúng cảm giác LED thật.
+
+**Giao diện tiếng Việt:** `GIÂY`, `PIN`, `BƯỚC CHÂN`, `NHỊP TIM`, dải ngày
+`CHỦ NHẬT · 25/10/2026`. Bo góc 46 px, nội dung nằm trong vùng an toàn.
 
 ## Nội dung gói release
 
@@ -42,13 +52,16 @@ artefact là gói thiết kế đã render, không phải APK.
 photo/face.png          320x385 RGB — dùng cho tính năng ảnh mặt đồng hồ
 photo/face_rounded.png  bản đã bo góc 46px (alpha ngoài góc = 0)
 photo/face_night.png    bản dịu sáng cho ban đêm
-layers/00_backplate.png      nền gang + bánh răng mờ
-layers/01_nameplate.png      bảng tên AETHER
-layers/02_led_panel.png      khung LED + segment chưa sáng
-layers/03_readout.png        giờ:phút + giây (thay bằng widget khi dựng động)
-layers/04_date_strip.png     dải thứ/ngày tiếng Việt
-layers/05_complications.png  3 cửa sổ PIN / BƯỚC CHÂN / NHỊP TIM
-layers/20_glass.png          phản sáng
+photo/face_alpha.png    RGBA — nền trong suốt ở khe giữa các bảng
+layers/00_backdrop.png      đáy vỏ: gang tối, đinh tán, vignette
+layers/01_movement.png      bộ máy: cầu, bánh răng, thùng dây cót, bánh lắc
+layers/02_crystal.png       kính khói + khúc xạ mép kính
+layers/03_nameplate.png     bảng tên AETHER
+layers/04_led_panel.png     khung LED + segment chưa sáng
+layers/05_readout.png       giờ:phút + giây (thay bằng widget khi dựng động)
+layers/06_date_strip.png    dải thứ/ngày tiếng Việt
+layers/07_complications.png 3 cửa sổ PIN / BƯỚC CHÂN / NHỊP TIM
+layers/20_glass.png         phản sáng
 layout.json             khung, thông số 7 đoạn, nhãn, thứ tự z
 ```
 
@@ -62,16 +75,18 @@ layout.json             khung, thông số 7 đoạn, nhãn, thứ tự z
 ## Dựng bản động
 
 Xem [docs/mi-watch-face-editor.md](docs/mi-watch-face-editor.md). Tóm tắt: import
-7 layer, thay `03_readout` bằng widget 7 đoạn của công cụ, giữ nguyên khung LED.
+9 layer, thay `05_readout` bằng widget 7 đoạn của công cụ, giữ nguyên khung LED.
+Muốn nền trong suốt hoàn toàn thì bỏ `00_backdrop` và dùng
+`photo/face_alpha.png`.
 
 ## Cấu trúc repo
 
 ```
 assets/layout.json         nguồn sự thật: khung, thông số 7 đoạn, nhãn, layer
-assets/palette.json        bảng màu
-scripts/steampunk.py       renderer: Canvas 3x, gradient, gear, LED 7 đoạn
+assets/palette.json        bảng màu (đồng, thép xanh, ruby, LED)
+scripts/steampunk.py       renderer: Canvas 3x, gradient, bộ máy, LED 7 đoạn
 scripts/generate.py        render ảnh phẳng, layer, mock-up, GIF
-scripts/validate.py        57 kiểm tra ràng buộc thiết bị/thiết kế
+scripts/validate.py        74 kiểm tra ràng buộc thiết bị/thiết kế
 scripts/build.py           đóng gói zip tái lập + manifest + SHA256SUMS
 docs/design-spec.md        đặc tả thiết kế chi tiết
 PROMPT.md                  prompt đầy đủ để tái tạo dự án bằng AI
@@ -84,13 +99,13 @@ python -m venv .venv && . .venv/bin/activate
 pip install -r requirements.txt
 sudo apt install fonts-noto-core fonts-dejavu-core
 
-make package VERSION=2.0.0
+make package VERSION=3.0.0
 ```
 
 Kết quả trong `dist/`:
 
 ```
-dist/steampunk-rw5a-2.0.0.zip
+dist/steampunk-rw5a-3.0.0.zip
 dist/manifest.json
 dist/SHA256SUMS.txt
 dist/preview/preview.png
@@ -101,13 +116,13 @@ Xem trước nhanh:
 
 ```bash
 make preview      # dist/preview/preview.png
-make check        # render + 57 kiểm tra
+make check        # render + 74 kiểm tra
 ```
 
 ## Phát hành
 
 ```bash
-git tag v2.0.0 && git push origin v2.0.0
+git tag v3.0.0 && git push origin v3.0.0
 ```
 
 `release.yml` build, xác minh checksum rồi tạo GitHub Release kèm zip, manifest,

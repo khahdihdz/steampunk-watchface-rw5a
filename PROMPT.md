@@ -8,12 +8,12 @@ và dán vào agent (OpenCode, Claude Code, Cursor, Copilot Workspace…).
 ## BẮT ĐẦU PROMPT
 
 Bạn là kỹ sư đồ hoạ procedural + kỹ sư CI/CD. Hãy tạo một repository hoàn chỉnh
-sinh ra **mặt đồng hồ steampunk LED 7 đoạn, giao diện tiếng Việt** cho
+sinh ra **mặt đồng hồ steampunk lộ cơ, LED 7 đoạn, giao diện tiếng Việt** cho
 **Redmi Watch 5 Active**, có pipeline GitHub Actions build và phát hành release.
 
 ### 1. Sự thật kỹ thuật bắt buộc (không được bỏ qua)
 
-- Thiết bị: **Redmi Watch 5 Active** — LCD 2.0", **320 × 385 px**, 60 Hz, bo góc
+- Thiết bị: **Redmi Watch 5 Active** — LCD 2.0\", **320 × 385 px**, 60 Hz, bo góc
   vật lý **bán kính ≈ 46 px**, chạy **HyperOS** (RTOS), **không phải Wear OS**.
 - Thiết bị **không có SDK mặt đồng hồ công khai**. Vì vậy:
   - **Không được** tạo APK, không dùng Watch Face Format của Wear OS, không
@@ -33,8 +33,7 @@ sinh ra **mặt đồng hồ steampunk LED 7 đoạn, giao diện tiếng Việt
 - **Giao diện tiếng Việt có dấu**: `GIÂY`, `PIN`, `BƯỚC CHÂN`, `NHỊP TIM`,
   dải ngày dạng `CHỦ NHẬT · 25/10/2026`. Phải kiểm tra font thật sự có glyph
   tiếng Việt, không để ra ô vuông `.notdef`.
-- **Số giờ và số liệu dùng LED 7 đoạn vẽ bằng polygon**, không dùng font LED
-  (không có font 7 đoạn mã nguồn mở đáng tin cậy trong môi trường CI).
+- **Số giờ và số liệu dùng LED 7 đoạn vẽ bằng polygon**, không dùng font LED.
 - Mọi hình vẽ ở **supersampling 3×** rồi hạ về 320 × 385 bằng LANCZOS.
 - Build phải **tái lập được**: cùng input ⇒ cùng SHA-256 của file zip.
 
@@ -45,54 +44,68 @@ sinh ra **mặt đồng hồ steampunk LED 7 đoạn, giao diện tiếng Việt
 | Vùng | Toạ độ |
 |---|---|
 | Canvas | 320 × 385, bo góc 46, vùng an toàn inset 14 |
-| Bảng tên AETHER | `(62, 18)–(258, 54)`, 2 bánh răng hai bên |
+| Bảng tên AETHER | `(62, 18)–(258, 54)` |
 | Khung LED | `(22, 64)–(298, 182)` |
-| Dải thứ/ngày | `(40, 192)–(280, 226)` |
-| Bảng phức hợp | `(20, 236)–(300, 356)`, 3 cửa sổ 82 × 42 tại y = 290 |
+| Dải thứ/ngày | `(64, 192)–(256, 226)` |
+| Bảng phức hợp | `(26, 236)–(294, 356)`, 3 cửa sổ 78 × 40 tại y = 290 |
+
+Hai bên sườn (x < 26 và x > 294) là **bộ máy lộ**.
+
+**Bộ máy lộ (layer riêng, vẽ trên nền trong suốt):**
+
+- Cầu (bridge): polyline dày bo đầu, gradient đồng dọc, viền sáng lệch lên,
+  bóng lệch xuống, vân xước cắt theo mask.
+- Bánh răng: silhouette từ công thức bánh răng + gradient radial + khoét lỗ nan
+  hoa (`ImageChops.subtract`) + hub + vành sáng.
+- Thùng dây cót: vành răng + lò xo xoắn Archimedes 4 vòng + bánh cót 8 rãnh.
+- Bánh lắc: vành khuyên, 2 nan, tóc xoắn 5,5 vòng, 4 ốc vành, chân kính giữa.
+- Chân kính ruby + ốc thép xanh (có rãnh vít).
+- Đặt sao cho chi tiết rơi vào dải nhìn thấy: sườn trái/phải, đáy (y > 356), góc.
+
+**Kính khói (xuyên thấu nhưng vẫn đọc được):**
+
+| Lớp | Alpha | Lý do |
+|---|---|---|
+| `backdrop` | 255 | đáy vỏ — bỏ được để có nền trong suốt |
+| `crystal` | ~8% phủ toàn mặt | ánh lạnh + khúc xạ mép kính |
+| `led_panel` (kính trong) | 94% | hạ dưới 0,90 là quầng LED mất tương phản |
+| `date_strip` | 91% | chữ ngày còn rõ |
+| `complications` | 89% | thấy máy mờ phía sau |
+| `nameplate` | 97% | chữ khắc sắc nét |
 
 **Thông số 7 đoạn:**
 
-| Tham số | Giờ:phút | Giây |
-|---|---|---|
-| `digit_w` | 36,0 | 16,0 |
-| `digit_h` | 78,0 | 28,0 |
-| `stroke` | 6,4 | 3,6 |
-| `gap` | 1,8 | 1,1 |
-| `spacing` | 9,0 | 3,0 |
-| `colon_w` | 14,0 | 8,0 |
-| `slant` | 0,06 | — |
+| Tham số | Giờ:phút | Giây | PIN/NHỊP TIM | BƯỚC |
+|---|---|---|---|---|
+| `digit_w` | 36,0 | 16,0 | 16,0 | 13,5 |
+| `digit_h` | 78,0 | 28,0 | 26,0 | 24,0 |
+| `stroke` | 6,4 | 3,6 | 3,8 | 3,2 |
+| `gap` | 1,8 | 1,1 | 1,8 | 1,6 |
+| `spacing` | 9,0 | 3,0 | 3,0 | 2,4 |
 
 **Quy tắc hình học 7 đoạn (quan trọng, dễ sai):**
 
 1. Mỗi segment là hình lục giác, hai đầu vát 45°.
-2. `gap` phải ≤ ~0,3 × `stroke`; nếu lớn hơn, các segment rời nhau và số đọc
-   thành "viên thuốc".
+2. `gap` phải ≤ ~0,3 × `stroke`; lớn hơn thì segment rời nhau, số đọc thành
+   "viên thuốc".
 3. `stroke < digit_h / 5`, nếu không lỗ giữa số 0 sẽ bít lại.
 4. Lớp "hot core" (ruột sáng) phải **mỏng hơn nhưng giữ nguyên đường tâm**
-   (`t_center`) và **ngắn hơn** hai đầu (`inset`). Nếu chỉ truyền `stroke` nhỏ
-   hơn vào công thức toạ độ cũ, ruột sáng bám mép segment và số trông rỗng.
-5. Segment **chưa sáng** (ghost) vẽ cùng sprite `88:88` màu `#1b100e`, và phải
-   **canh đúng vị trí số thật** — canh giữa khung sẽ lệch khi có khối giây bên
-   phải, tạo cảm giác "hai hàng số".
+   (`t_center`) và **ngắn hơn** hai đầu (`inset`).
+5. Ghost segment vẽ cùng sprite `88:88` màu `#1b100e`, **canh đúng vị trí** số
+   thật — canh giữa khung sẽ lệch khi có khối giây bên phải.
 
-**Phong cách steampunk (bắt buộc thể hiện):**
-
-- Khung đồng thau có vát, ốc, đinh tán 4 góc bo, vết verdigris, vignette, vân
-  xước mịn; bánh răng mờ ở nền và 2 bánh răng nhỏ cạnh bảng tên.
-- Bảng màu: nền gang `#1c1512`, đồng `#c8963e` / `#f6d894`, LED hổ phách
-  `#ffb340`, LED giây đỏ cam `#ff5b3a`, chữ kem `#eadcbb`.
-- LED có **quầng sáng 3 lớp** (blur 7 / 3,2 / 1,2 px) và ruột sáng hơn ở giữa.
-
-**Layer (mỗi layer là PNG 320 × 385 RGBA, cùng hệ toạ độ):**
+**Layer (PNG 320 × 385 RGBA, cùng hệ toạ độ):**
 
 | File | z | Nội dung |
 |---|---|---|
-| `00_backplate.png` | 0 | nền gang + bánh răng mờ + rivet + vignette |
-| `01_nameplate.png` | 1 | bảng AETHER + 2 bánh răng |
-| `02_led_panel.png` | 2 | khung LED + segment chưa sáng |
-| `03_readout.png` | 3 | giờ:phút + giây (layer duy nhất thay bằng widget) |
-| `04_date_strip.png` | 4 | dải `CHỦ NHẬT · 25/10/2026` |
-| `05_complications.png` | 5 | 3 cửa sổ PIN / BƯỚC CHÂN / NHỊP TIM |
+| `00_backdrop.png` | 0 | đáy vỏ gang + rivet + vignette |
+| `01_movement.png` | 1 | bộ máy lộ |
+| `02_crystal.png` | 2 | kính khói |
+| `03_nameplate.png` | 3 | bảng AETHER |
+| `04_led_panel.png` | 4 | khung LED + segment chưa sáng |
+| `05_readout.png` | 5 | giờ:phút + giây (layer duy nhất thay bằng widget) |
+| `06_date_strip.png` | 6 | dải `CHỦ NHẬT · 25/10/2026` |
+| `07_complications.png` | 7 | 3 cửa sổ PIN / BƯỚC CHÂN / NHỊP TIM |
 | `20_glass.png` | 20 | phản sáng, bỏ khi chế độ tối |
 
 **Ảnh phẳng:**
@@ -100,6 +113,8 @@ sinh ra **mặt đồng hồ steampunk LED 7 đoạn, giao diện tiếng Việt
 - `photo/face.png` — 320 × 385 RGB, phủ kín màn hình.
 - `photo/face_rounded.png` — mask theo bo góc 46 (alpha ngoài góc = 0).
 - `photo/face_night.png` — giảm ~40% sáng, 75% bão hoà.
+- `photo/face_alpha.png` — RGBA **không có backdrop**: khe giữa các bảng trong
+  suốt thật, còn các bảng đục 100% để chữ vẫn đọc được.
 
 ### 4. Cấu trúc repo
 
@@ -108,32 +123,34 @@ sinh ra **mặt đồng hồ steampunk LED 7 đoạn, giao diện tiếng Việt
 ├── .github/workflows/ci.yml        # render + validate + kiểm tra tái lập
 ├── .github/workflows/release.yml   # tag v* → build → GitHub Release
 ├── assets/layout.json              # nguồn sự thật: khung, 7 đoạn, nhãn, layer
-├── assets/palette.json             # bảng màu
+├── assets/palette.json             # bảng màu (đồng, thép xanh, ruby, LED)
 ├── docs/design-spec.md             # đặc tả thiết kế
 ├── docs/mi-watch-face-editor.md    # hướng dẫn dựng bản động
 ├── docs/preview.png · docs/rotation.gif
-├── scripts/steampunk.py            # Canvas 3x, gradient, gear, LED 7 đoạn
-├── scripts/generate.py             # render artefact
+├── scripts/steampunk.py            # Canvas 3x, gradient, bộ máy, LED 7 đoạn
+├── scripts/generate.py             # render artefact + mock-up + GIF
 ├── scripts/validate.py             # kiểm tra ràng buộc
 ├── scripts/build.py                # zip tái lập + manifest + SHA256SUMS
 ├── Makefile · requirements.txt · README.md · PROMPT.md · LICENSE
 ```
 
-### 5. Kiểm tra tự động (`scripts/validate.py`, khoảng 55–60 check)
+### 5. Kiểm tra tự động (`scripts/validate.py`, ~74 check)
 
 Phải fail build (exit ≠ 0) khi:
 
-1. Thiếu bất kỳ artefact nào.
+1. Thiếu bất kỳ artefact nào (4 ảnh photo + 9 layer).
 2. Ảnh sai kích thước (≠ 320 × 385) hoặc sai mode (layer phải RGBA).
 3. Layer rỗng (alpha bbox = None).
-4. `03_readout` tràn ra ngoài khung LED.
-5. Quá ít pixel màu LED sáng (< 1200 pixel gần `#ffb340`) — dấu hiệu số không render.
-6. `stroke ≥ digit_h / 5` (segment dính khối) hoặc `seven_seg_width("88:88")`
-   rộng hơn khung LED.
-7. `face_rounded.png` còn đục ở 4 góc hoặc trong suốt ở tâm.
-8. 4 góc `face.png` quá sáng (luma > 75).
-9. `face_night.png` không tối hơn bản ngày.
-10. `layout.json` sai canvas/bán kính bo góc, hoặc thứ tự layer không tăng dần.
+4. `05_readout` tràn ra ngoài khung LED.
+5. Quá ít pixel màu LED sáng (< 1200 pixel gần `#ffb340`).
+6. `stroke ≥ digit_h / 5` hoặc `seven_seg_width("88:88")` rộng hơn khung LED.
+7. `01_movement` rỗng, hoặc không phủ hai mép trái/phải, hoặc < 3000 pixel đồng.
+8. `face_rounded.png` còn đục ở 4 góc hoặc trong suốt ở tâm.
+9. 4 góc `face.png` quá sáng (luma > 75).
+10. `face_alpha.png` không phải RGBA, góc không trong suốt, vùng số không đục,
+    hoặc khe giữa các bảng vẫn đục (mất tính xuyên thấu).
+11. `face_night.png` không tối hơn bản ngày.
+12. `layout.json` sai canvas/bán kính bo góc, hoặc thứ tự layer không tăng dần.
 
 In ra `✓ N kiểm tra đều đạt (320×385, bo góc 46px, LED 7 đoạn)`.
 
@@ -144,26 +161,28 @@ In ra `✓ N kiểm tra đều đạt (320×385, bo góc 46px, LED 7 đoạn)`.
 - Ubuntu latest, Python 3.12, cài `fonts-noto-core` + `fonts-dejavu-core`.
 - Chạy `python scripts/build.py`.
 - Build **hai lần** (`dist/`, `dist2/`) rồi `cmp dist/*.zip dist2/*.zip`.
-- `cd dist && sha256sum -c SHA256SUMS.txt` (đường dẫn trong file là tương đối).
+- `cd dist && sha256sum -c SHA256SUMS.txt`.
 - Upload `dist/preview/*` làm artifact.
 
 **Release** (push tag `v*`, hoặc workflow_dispatch có input `version`):
 
 - `permissions: contents: write`.
-- `SOURCE_DATE_EPOCH=$(git log -1 --format=%ct)` để zip ổn định.
-- Build, verify checksum, rồi `gh release create` (dùng `GITHUB_TOKEN`, không cần
-  action bên thứ ba) đính kèm: `.zip`, `manifest.json`, `SHA256SUMS.txt`,
-  `preview.png`, `rotation.gif`.
+- `SOURCE_DATE_EPOCH=$(git log -1 --format=%ct)`.
+- Build, verify checksum, rồi `gh release create` (dùng `GITHUB_TOKEN`) đính kèm:
+  `.zip`, `manifest.json`, `SHA256SUMS.txt`, `preview.png`, `rotation.gif`.
 - `--generate-notes`; **không** truyền `--target` khi tag đã tồn tại.
 
 ### 7. Tiêu chí nghiệm thu
 
-- [ ] `make package VERSION=2.0.0` chạy < 30 s, không cảnh báo.
-- [ ] Zip chứa **13 tệp**: 3 ảnh photo + 7 layer + `layout.json` +
+- [ ] `make package VERSION=3.0.0` chạy < 60 s, không cảnh báo.
+- [ ] Zip chứa **16 tệp**: 4 ảnh photo + 9 layer + `layout.json` +
       `INSTALL.txt` + `LICENSE`.
 - [ ] Build 2 lần trên cùng runner cho zip giống nhau từng byte.
-- [ ] Ở 100%, `10:09` đọc được ngay, không cần đoán; "0" có lỗ giữa rõ ràng.
-- [ ] Ghost segment nằm đúng dưới số thật, không lệch thành hàng thứ hai.
+- [ ] Ở 100%, `10:09` đọc được ngay; "0" có lỗ giữa rõ ràng.
+- [ ] Bộ máy (bánh răng, bánh lắc, thùng dây cót) nhìn thấy ở sườn và đáy.
+- [ ] Qua kính khói vẫn thấy máy mờ, nhưng số/nhãn không bị giảm tương phản.
+- [ ] `face_alpha.png` để nền trong suốt ở khe giữa các bảng, không lộ viền
+      răng cưa.
 - [ ] Chữ tiếng Việt có dấu hiển thị đúng (không ô vuông).
 - [ ] Không pixel nội dung nào lọt ra ngoài bo góc.
 - [ ] README nói trung thực giới hạn "không có APK" + 2 cách sử dụng.

@@ -1,7 +1,7 @@
 # Dựng mặt đồng hồ động trong Mi Watch Face Editor
 
-> Tài liệu mô tả quy trình thủ công để biến 7 layer trong `layers/` thành mặt
-> đồng hồ LED có số nhảy trên Redmi Watch 5 Active. Xiaomi không phát hành
+> Tài liệu mô tả quy trình thủ công để biến 9 layer trong `layers/` thành mặt
+> đồng hồ LED lộ cơ có số nhảy trên Redmi Watch 5 Active. Xiaomi không phát hành
 > SDK/CLI cho định dạng HyperOS, nên **không bước nào ở đây chạy được trên
 > GitHub Actions**.
 
@@ -22,20 +22,26 @@
 
 | Bước | Tệp | Loại | Thiết lập |
 |---|---|---|---|
-| 1 | `00_backplate.png` | Image (static) | z = 0 |
-| 2 | `01_nameplate.png` | Image (static) | z = 1 |
-| 3 | `02_led_panel.png` | Image (static) | z = 2 |
-| 4 | `03_readout.png` | **thay bằng widget** | z = 3, xem mục 3 |
-| 5 | `04_date_strip.png` | Image (static) | z = 4 |
-| 6 | `05_complications.png` | Image (static) | z = 5 |
-| 7 | `20_glass.png` | Image (static) | z = 20, bỏ khi AOD |
+| 1 | `00_backdrop.png` | Image (static) | z = 0, **bỏ nếu muốn nền trong suốt** |
+| 2 | `01_movement.png` | Image (static) | z = 1 — bộ máy lộ |
+| 3 | `02_crystal.png` | Image (static) | z = 2 — kính khói |
+| 4 | `03_nameplate.png` | Image (static) | z = 3 |
+| 5 | `04_led_panel.png` | Image (static) | z = 4 |
+| 6 | `05_readout.png` | **thay bằng widget** | z = 5, xem mục 3 |
+| 7 | `06_date_strip.png` | Image (static) | z = 6 |
+| 8 | `07_complications.png` | Image (static) | z = 7 |
+| 9 | `20_glass.png` | Image (static) | z = 20, bỏ khi AOD |
 
-## 3. Thay `03_readout` bằng số thật
+**Nền xuyên thấu:** nếu công cụ cho phép nền trong suốt và bạn muốn thấy nền của
+hệ thống/ảnh khác phía sau, bỏ `00_backdrop` và dùng `photo/face_alpha.png` làm
+lớp nội dung. Khi đó chỉ còn bộ máy + các bảng nổi trên nền trong.
 
-`03_readout.png` là ảnh nung sẵn `10:09` + `36`. Muốn số nhảy theo giờ thực:
+## 3. Thay `05_readout` bằng số thật
+
+`05_readout.png` là ảnh nung sẵn `10:09` + `36`. Muốn số nhảy theo giờ thực:
 
 1. Ẩn (hoặc xoá) layer này.
-2. Thêm widget **Time** tại khung chữ nhật `(40, 72)–(210, 150)`:
+2. Thêm widget **Time** tại khung `(40, 72)–(210, 150)`:
    - font 7 đoạn của công cụ, cỡ **78**, màu `#FFB340`;
    - định dạng **24 giờ**, hiển thị `HH:MM`.
 3. Thêm widget **Seconds** tại `(216, 122)–(252, 150)`:
@@ -46,10 +52,11 @@
 
 ## 4. Thay 3 cửa sổ giá trị
 
-`05_complications.png` chứa số mẫu (78 %, 6428, 72) và khung cửa sổ.
+`07_complications.png` chứa số mẫu (78 %, 6428, 72) và khung cửa sổ.
 
-- Giữ khung: cắt 3 vùng `82 × 42` tại tâm `(70, 290)`, `(160, 290)`, `(250, 290)`.
+- Giữ khung: 3 vùng `78 × 40` tại tâm `(70, 290)`, `(160, 290)`, `(250, 290)`.
 - Thêm widget:
+
   | Cửa sổ | Widget | Cỡ | Màu |
   |---|---|---|---|
   | trái | Battery | 26 | `#FFB340` |
@@ -60,8 +67,9 @@ Nhãn `PIN / BƯỚC CHÂN / NHỊP TIM` nằm sẵn trong layer, không cần t
 
 ## 5. Chế độ AOD / tiết kiệm pin
 
-- Giữ `02_led_panel` + widget giờ:phút (giảm độ sáng nếu công cụ cho phép).
-- Bỏ `00_backplate`, `01_nameplate`, `20_glass`.
+- Giữ `01_movement` + `02_crystal` + `04_led_panel` + widget giờ:phút.
+- Bỏ `00_backdrop`, `03_nameplate`, `07_complications`, `20_glass` (bộ máy vẫn
+  nhìn thấy nhưng nền trong suốt, tiết kiệm điểm ảnh tối).
 - Hoặc dùng `photo/face_night.png` nếu chỉ được phép một ảnh nền cho AOD.
 
 ## 6. Xuất và cài

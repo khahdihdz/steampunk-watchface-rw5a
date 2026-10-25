@@ -16,12 +16,15 @@ EXPECTED = {
     "photo/face.png",
     "photo/face_rounded.png",
     "photo/face_night.png",
-    "layers/00_backplate.png",
-    "layers/01_nameplate.png",
-    "layers/02_led_panel.png",
-    "layers/03_readout.png",
-    "layers/04_date_strip.png",
-    "layers/05_complications.png",
+    "photo/face_alpha.png",
+    "layers/00_backdrop.png",
+    "layers/01_movement.png",
+    "layers/02_crystal.png",
+    "layers/03_nameplate.png",
+    "layers/04_led_panel.png",
+    "layers/05_readout.png",
+    "layers/06_date_strip.png",
+    "layers/07_complications.png",
     "layers/20_glass.png",
 }
 
@@ -70,7 +73,7 @@ def main(argv=None) -> int:
         check(layer.split()[3].getbbox() is not None, f"{rel} rỗng (alpha trắng)")
 
     # --- LED readout ------------------------------------------------------ #
-    readout = Image.open(dist / "layers/03_readout.png")
+    readout = Image.open(dist / "layers/05_readout.png")
     box = readout.split()[3].getbbox()
     panel = sp.PANEL
     check(panel[0] <= box[0] and box[2] <= panel[2]
@@ -80,7 +83,7 @@ def main(argv=None) -> int:
     lit = count_near(readout, sp.LED["color"], 60)
     check(lit > 1200, f"quá ít pixel LED sáng ({lit}) — số 7 đoạn có thể không render")
 
-    ghost = Image.open(dist / "layers/02_led_panel.png")
+    ghost = Image.open(dist / "layers/04_led_panel.png")
     ghost_box = ghost.split()[3].getbbox()
     check(ghost_box is not None
           and ghost_box[0] <= panel[0] and ghost_box[1] <= panel[1]
@@ -98,6 +101,29 @@ def main(argv=None) -> int:
           "stroke quá dày so với chiều cao số — 7 đoạn sẽ dính khối")
     check(sp.SEC["stroke"] < sp.SEC["digit_h"] / 4,
           "stroke giây quá dày")
+
+    # --- skeleton movement ------------------------------------------------ #
+    movement = Image.open(dist / "layers/01_movement.png")
+    mbox = movement.split()[3].getbbox()
+    check(mbox is not None, "layer movement rỗng — không thấy bộ máy")
+    check(mbox is not None and mbox[0] <= 2 and mbox[2] >= sp.W - 2,
+          f"bộ máy không phủ hai mép trái/phải: {mbox}")
+    check(count_near(movement, sp.load_palette()["brass"], 70) > 3000,
+          "quá ít chi tiết đồng trong bộ máy")
+
+    backdrop = Image.open(dist / "layers/00_backdrop.png")
+    check(backdrop.split()[3].getpixel((0, 0)) == 255,
+          "backdrop phải đục hoàn toàn ở tâm góc")
+
+    # --- transparent variant ---------------------------------------------- #
+    clear = Image.open(dist / "photo/face_alpha.png")
+    check(clear.mode == "RGBA", f"face_alpha phải là RGBA, đang là {clear.mode}")
+    ca = clear.split()[3]
+    check(ca.getpixel((0, 0)) == 0, "face_alpha: góc phải trong suốt")
+    check(ca.getpixel((sp.W // 2, 120)) >= 230,
+          "face_alpha: vùng số phải đục để đọc được")
+    check(ca.getpixel((sp.W // 2, 231)) < 40,
+          "face_alpha: khe giữa các bảng vẫn đục — nền chưa xuyên thấu")
 
     # --- rounded panel ---------------------------------------------------- #
     rounded = Image.open(dist / "photo/face_rounded.png")
@@ -128,7 +154,7 @@ def main(argv=None) -> int:
 
     ids = [layer["id"] for layer in layout["layers"]]
     check(ids == sorted(ids, key=lambda s: s), "thứ tự layer không tăng dần")
-    check("03_readout" in ids, "layout.json thiếu layer readout")
+    check("05_readout" in ids, "layout.json thiếu layer readout")
     check(all(label for label in layout["complications"]["labels"]),
           "layout.json thiếu nhãn phức hợp")
 

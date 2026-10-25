@@ -11,5 +11,9 @@
   "parchment": "#eadcbb",
   "parchment_dark": "#c3ab80",
   "ember": "#e2603a",
-  "white": "#fff6e0"
+  "white": "#fff6e0",
+  "steel": "#9aa6ad",
+  "blued": "#2c3f5c",
+  "ruby": "#c02b4a",
+  "sapphire": "#3a5460"
 }
