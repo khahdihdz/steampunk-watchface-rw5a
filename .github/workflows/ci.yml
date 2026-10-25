@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  render:
+    name: Render & validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install fonts
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            fonts-noto-core fonts-dejavu-core
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Build (1/2)
+        run: |
+          SOURCE_DATE_EPOCH=$(git log -1 --format=%ct) \
+            python scripts/build.py --version "0.0.0+ci.${{ github.run_number }}"
+
+      - name: Build (2/2) — reproducibility check
+        run: |
+          SOURCE_DATE_EPOCH=$(git log -1 --format=%ct) \
+            python scripts/build.py \
+            --version "0.0.0+ci.${{ github.run_number }}" --out dist2
+          cmp dist/*.zip dist2/*.zip
+          echo "reproducible build ✓"
+
+      - name: Verify checksums
+        run: sha256sum -c dist/SHA256SUMS.txt
+
+      - name: Upload preview
+        uses: actions/upload-artifact@v4
+        with:
+          name: preview-${{ github.run_number }}
+          path: |
+            dist/preview/preview.png
+            dist/preview/rotation.gif
+          if-no-files-found: error

@@ -1,0 +1,44 @@
+{
+  "device": "Redmi Watch 5 Active",
+  "codename": "rw5a",
+  "canvas": {
+    "width": 320,
+    "height": 385,
+    "corner_radius": 46,
+    "safe_inset": 14,
+    "dpi_note": "2.0\" LCD, 251 ppi — design at 1:1 device pixels"
+  },
+  "dial": {
+    "center": [160, 160],
+    "radius": 104
+  },
+  "pivot": [160, 160],
+  "hands": {
+    "hour": 56,
+    "minute": 80,
+    "second": 86
+  },
+  "hands_z_order": ["hour", "minute", "second"],
+  "sample_values": {
+    "day": 25,
+    "month": "OCT",
+    "battery": 78,
+    "steps": 6428
+  },
+  "complications": {
+    "date": { "center": [78, 312], "radius": 27, "type": "date" },
+    "battery": { "center": [160, 312], "radius": 27, "type": "battery_arc" },
+    "steps": { "center": [242, 312], "radius": 27, "type": "steps" }
+  },
+  "layers": [
+    { "id": "00_backplate", "z": 0, "alpha": 255, "animated": false },
+    { "id": "01_nameplate", "z": 1, "alpha": 255, "animated": false },
+    { "id": "02_dial", "z": 2, "alpha": 255, "animated": false },
+    { "id": "03_complications", "z": 3, "alpha": 255, "animated": false },
+    { "id": "10_hand_hour", "z": 10, "alpha": 255, "animated": true, "rotation_period": "12h", "pivot": [160, 160] },
+    { "id": "11_hand_minute", "z": 11, "alpha": 255, "animated": true, "rotation_period": "60m", "pivot": [160, 160] },
+    { "id": "12_hand_second", "z": 12, "alpha": 255, "animated": true, "rotation_period": "60s", "pivot": [160, 160] },
+    { "id": "13_cap", "z": 13, "alpha": 255, "animated": false },
+    { "id": "20_glass", "z": 20, "alpha": 255, "animated": false, "skip_in_aod": true }
+  ]
+}
