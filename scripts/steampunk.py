@@ -783,6 +783,9 @@ def date_strip_layer(palette, fonts, values, size=(W, H), opacity=None) -> Image
                                                 top=0.40, bottom=0.68)),
                                   _panel_fade(0.91, opacity)))
 
+    if values is None:
+        return out
+
     label = (f"{values['weekday']} · {values['day']:02d}/{values['month']:02d}/"
              f"{values['year']}")
     c = Canvas(size)
@@ -845,21 +848,23 @@ def complications_layer(palette, fonts, values, size=(W, H), opacity=None) -> Im
     wide = {"digit_w": 13.5, "digit_h": 24.0, "stroke": 3.2, "gap": 1.6,
             "spacing": 2.4, "colon_w": 6.0, "slant": 0.04}
 
-    battery = led_text(f"{values['battery']:02d}", medium, LED["color"], glow=110)
-    heart = led_text(f"{values['heart']:02d}", medium, LED["color"], glow=110)
-    steps = led_text(str(values["steps"]), wide, LED["color"], glow=95)
+    if values is not None:
+        battery = led_text(f"{values['battery']:02d}", medium, LED["color"], glow=110)
+        heart = led_text(f"{values['heart']:02d}", medium, LED["color"], glow=110)
+        steps = led_text(str(values["steps"]), wide, LED["color"], glow=95)
 
-    def place(sprite, cx, cy, dx=0.0, dy=0.0):
-        out.alpha_composite(sprite, (int(cx - sprite.width / 2 + dx),
-                                     int(cy - sprite.height / 2 + dy)))
+        def place(sprite, cx, cy, dx=0.0, dy=0.0):
+            out.alpha_composite(sprite, (int(cx - sprite.width / 2 + dx),
+                                         int(cy - sprite.height / 2 + dy)))
 
-    place(battery, centers[0][0] - 5, centers[0][1])
-    place(steps, centers[1][0], centers[1][1])
-    place(heart, centers[2][0], centers[2][1])
+        place(battery, centers[0][0] - 5, centers[0][1])
+        place(steps, centers[1][0], centers[1][1])
+        place(heart, centers[2][0], centers[2][1])
 
     c = Canvas(size)
-    c.text((centers[0][0] + 19, centers[0][1] + 3), "%", fonts["mono"], 7.5,
-           rgba(palette["brass_hi"], 225), anchor="mm")
+    if values is not None:
+        c.text((centers[0][0] + 19, centers[0][1] + 3), "%", fonts["mono"], 7.5,
+               rgba(palette["brass_hi"], 225), anchor="mm")
     for (cx, cy), label in zip(centers, labels):
         engrave(c, (cx, PLATE[3] - 22), label, fonts["serif"], 8.2,
                 rgba(palette["brass_hi"], 210), (0, 0, 0, 190), depth=0.7)
@@ -904,6 +909,22 @@ def compose(layers: dict, palette, fonts, time, size=(W, H),
     img.alpha_composite(layers["date_strip"])
     img.alpha_composite(layers["complications"])
     img.alpha_composite(layers["glass"])
+    return img
+
+
+def static_composite(layers: dict, size=(W, H), backdrop: bool = True) -> Image.Image:
+    """Flatten the artwork without the LED readout / date text.
+
+    This is the plate the firmware draws its own widgets on top of (``.bin``
+    build), so every value that changes at runtime must be left blank.
+    """
+    img = Image.new("RGBA", size, (0, 0, 0, 255) if backdrop else (0, 0, 0, 0))
+    order = ["movement", "crystal", "nameplate", "led_panel",
+             "date_strip", "complications", "glass"]
+    if backdrop:
+        img.alpha_composite(layers["backdrop"])
+    for key in order:
+        img.alpha_composite(layers[key])
     return img
 
 

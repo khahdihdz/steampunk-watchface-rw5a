@@ -1,0 +1,118 @@
+name: Face binary
+
+on:
+  workflow_call:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "scripts/binface.py"
+      - "scripts/validate_fprj.py"
+      - ".github/workflows/bin.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  project:
+    name: Render EasyFace project
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install fonts
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            fonts-noto-core fonts-dejavu-core
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Build project
+        run: python scripts/binface.py --out build/fprj
+
+      - name: Validate project
+        run: python scripts/validate_fprj.py build/fprj
+
+      - name: Upload project
+        uses: actions/upload-artifact@v4
+        with:
+          name: fprj-project
+          path: |
+            build/fprj/face.fprj
+            build/fprj/images/
+            build/fprj/preview_dryrun.png
+          if-no-files-found: error
+
+  binary:
+    name: Compile .bin (Mi-Create toolchain)
+    needs: project
+    runs-on: windows-latest
+    steps:
+      - name: Download project
+        uses: actions/download-artifact@v4
+        with:
+          name: fprj-project
+          path: project
+
+      - name: Fetch compile.exe
+        shell: pwsh
+        env:
+          BLOB_SHA: ${{ vars.MICREATE_COMPILER_SHA || '3c015d01143f5c4b3d0ab207baf20684027ebf89' }}
+        run: |
+          $headers = @{
+            "User-Agent" = "steampunk-rw5a-ci"
+            "Accept"     = "application/vnd.github+json"
+          }
+          $uri = "https://api.github.com/repos/ooflet/Mi-Create/git/blobs/$env:BLOB_SHA"
+          $blob = Invoke-RestMethod -Uri $uri -Headers $headers
+          [IO.File]::WriteAllBytes("compile.exe", [Convert]::FromBase64String($blob.content))
+          $size = (Get-Item compile.exe).Length
+          if ($size -lt 1000000) { throw "compile.exe tải hỏng ($size byte)" }
+          "compile.exe: $size byte"
+
+      - name: Compile
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force build\bin | Out-Null
+          $project = (Resolve-Path "project").Path
+          .\compile.exe -b $project "build\bin" "steampunk-rw5a.face" "1461256429"
+          if (-not (Test-Path "build\bin\steampunk-rw5a.face")) {
+            Get-ChildItem -Recurse build | Format-Table FullName, Length
+            throw "compile.exe không tạo ra file .face"
+          }
+
+      - name: Verify container & rename
+        shell: pwsh
+        run: |
+          $face = "build\bin\steampunk-rw5a.face"
+          $bytes = [IO.File]::ReadAllBytes($face)
+          $magic = ($bytes[0..3] | ForEach-Object { $_.ToString("X2") }) -join ""
+          $id = [Text.Encoding]::ASCII.GetString($bytes[40..51])
+          Write-Host "kích thước: $($bytes.Length) byte"
+          Write-Host "magic: $magic"
+          Write-Host "id: $id"
+          if ($magic -ne "5AA53412") { throw "magic 5AA53412 không khớp ($magic)" }
+          Move-Item $face "build\bin\steampunk-rw5a.bin" -Force
+          Get-FileHash "build\bin\steampunk-rw5a.bin" -Algorithm SHA256 |
+            ForEach-Object { "$($_.Hash.ToLower())  steampunk-rw5a.bin" } |
+            Set-Content "build\bin\SHA256SUMS.txt"
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: watchface-bin
+          path: |
+            build/bin/steampunk-rw5a.bin
+            build/bin/SHA256SUMS.txt
+          if-no-files-found: error
