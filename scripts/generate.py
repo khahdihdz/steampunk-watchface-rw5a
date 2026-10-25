@@ -1,25 +1,26 @@
 #!/usr/bin/env python3
 """
-generate.py — render every artefact of the Steampunk RW5A watch face.
+generate.py — render every artefact of the Steampunk LED RW5A watch face.
 
 Outputs (under --out, default ./dist):
 
     photo/face.png          flattened 320x385 artwork (custom-photo slot)
     photo/face_rounded.png  same artwork pre-masked to the panel corner radius
-    photo/face_night.png    dimmed variant for always-on / night mode
+    photo/face_night.png    dimmed variant for night / always-on
     layers/*.png            separated layers for Mi Watch Face Editor
     preview/preview.png     device mock-up for the README
-    preview/rotation.gif    animated preview (second hand sweep)
+    preview/rotation.gif    animated preview (giây chạy)
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
-from PIL import Image, ImageDraw
+from PIL import Image
 
 import steampunk as sp
 
@@ -28,19 +29,16 @@ SERIF_CANDIDATES = [
     "/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf",
     "/usr/share/fonts/TTF/DejaVuSerif-Bold.ttf",
     "/system/fonts/NotoSerif-Bold.ttf",
-    "/system/fonts/DroidSerif-Bold.ttf",
 ]
 
 MONO_CANDIDATES = [
     "/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf",
     "/usr/share/fonts/TTF/DejaVuSansMono-Bold.ttf",
     "/system/fonts/DroidSansMono.ttf",
-    "/system/fonts/RobotoMono-Bold.ttf",
 ]
 
 
 def pick_font(candidates, label: str) -> str:
-    import os
     env = os.environ.get(f"WATCHFACE_FONT_{label.upper()}")
     for path in ([env] if env else []) + candidates:
         if path and Path(path).exists():
@@ -65,7 +63,6 @@ def render_device_mock(face: Image.Image) -> Image.Image:
     out = sp.radial((w, h), [(0.0, (46, 34, 25)), (0.55, (21, 16, 13)),
                              (1.0, (9, 7, 6))]).convert("RGB")
 
-    # straps peeking out above and below the case
     for y0, y1 in ((-40, 150), (556, h + 40)):
         strap = sp.rrect_mask((w, h), (206, y0, 354, y1), 30)
         out.paste((38, 28, 22), (0, 0), strap.split()[3])
@@ -102,11 +99,11 @@ def render_device_mock(face: Image.Image) -> Image.Image:
     return out
 
 
-def render_gif(layers, palette, path: Path, size=(160, 193), frames=20) -> None:
+def render_gif(layers, palette, fonts, path: Path, size=(160, 193), frames=20) -> None:
     imgs = []
     for i in range(frames):
         second = i * (60 // frames)
-        frame = sp.compose(layers, palette, (10, 9, second))
+        frame = sp.compose(layers, palette, fonts, (10, 9, second))
         small = frame.convert("RGB").resize(size, Image.LANCZOS)
         imgs.append(small.quantize(colors=128, method=Image.FASTOCTREE))
     imgs[0].save(path, save_all=True, append_images=imgs[1:], duration=120,
@@ -122,19 +119,18 @@ def main(argv=None) -> int:
     args = parser.parse_args(argv)
 
     out = Path(args.out)
-    (out / "photo").mkdir(parents=True, exist_ok=True)
-    (out / "layers").mkdir(parents=True, exist_ok=True)
-    (out / "preview").mkdir(parents=True, exist_ok=True)
+    for sub in ("photo", "layers", "preview"):
+        (out / sub).mkdir(parents=True, exist_ok=True)
 
     palette = sp.load_palette()
     fonts = {"serif": pick_font(SERIF_CANDIDATES, "serif"),
              "mono": pick_font(MONO_CANDIDATES, "mono")}
     values = sp.LAYOUT["sample_values"]
 
-    layers = sp.build_layers(palette, fonts, values)
-    face = sp.compose(layers, palette, args.time)
+    layers = sp.build_static(palette, fonts, values)
+    face = sp.compose(layers, palette, fonts, args.time)
 
-    face.copy().convert("RGB").save(out / "photo" / "face.png", optimize=True)
+    face.convert("RGB").save(out / "photo" / "face.png", optimize=True)
 
     rounded = face.copy()
     rounded.putalpha(sp.screen_mask().split()[3])
@@ -143,21 +139,24 @@ def main(argv=None) -> int:
     sp.night_variant(face).convert("RGB").save(
         out / "photo" / "face_night.png", optimize=True)
 
-    layer_ids = {entry["id"]: entry for entry in sp.LAYOUT["layers"]}
+    layer_ids = {entry["id"] for entry in sp.LAYOUT["layers"]}
     key_for = {
         "00_backplate": "backplate", "01_nameplate": "nameplate",
-        "02_dial": "dial", "03_complications": "complications",
-        "10_hand_hour": "hour", "11_hand_minute": "minute",
-        "12_hand_second": "second", "13_cap": "cap", "20_glass": "glass",
+        "02_led_panel": "led_panel", "04_date_strip": "date_strip",
+        "05_complications": "complications", "20_glass": "glass",
     }
     for layer_id, key in key_for.items():
         if layer_id in layer_ids:
             layers[key].save(out / "layers" / f"{layer_id}.png", optimize=True)
 
+    if "03_readout" in layer_ids:
+        sp.readout_layer(palette, fonts, args.time).save(
+            out / "layers" / "03_readout.png", optimize=True)
+
     if not args.no_preview:
         render_device_mock(face).save(out / "preview" / "preview.png", optimize=True)
     if not args.no_gif:
-        render_gif(layers, palette, out / "preview" / "rotation.gif")
+        render_gif(layers, palette, fonts, out / "preview" / "rotation.gif")
 
     (out / "layout.json").write_text(
         json.dumps(sp.LAYOUT, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")

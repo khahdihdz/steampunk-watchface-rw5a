@@ -32,17 +32,16 @@ FIXED_DATE = (1980, 1, 1, 0, 0, 0)
 PACK_NAME = "steampunk-rw5a"
 
 INSTALL_NOTES = """\
-STEAMPUNK RW5A — Steampunk watch face for the Redmi Watch 5 Active
-=================================================================
+STEAMPUNK LED RW5A — Mặt đồng hồ LED 7 đoạn cho Redmi Watch 5 Active
+===================================================================
 
 Nội dung gói
 ------------
 photo/face.png          320x385, ảnh phẳng dùng cho tính năng "ảnh mặt đồng hồ"
 photo/face_rounded.png  bản đã bo góc theo viền máy (alpha ngoài góc = 0)
 photo/face_night.png    bản dịu sáng cho ban đêm
-layers/*.png            layer rời, dùng để dựng mặt đồng hồ động trong
-                        Mi Watch Face Editor (xem docs/mi-watch-face-editor.md)
-layout.json             toạ độ, tâm xoay, thứ tự z của từng layer
+layers/*.png            7 layer rời, cùng hệ toạ độ 320x385
+layout.json             khung LED, thông số 7 đoạn, nhãn phụ, thứ tự z
 
 Cách 1 — nhanh nhất (không cần công cụ)
 ---------------------------------------
@@ -52,8 +51,11 @@ Cách 1 — nhanh nhất (không cần công cụ)
 
 Cách 2 — mặt đồng hồ động
 --------------------------
-Dùng layers/ + layout.json trong Mi Watch Face Editor.  Tâm xoay của 3 kim là
-(160, 160); chu kỳ xoay 12h / 60m / 60s.
+Dùng layers/ + layout.json trong Mi Watch Face Editor.  Layer 03_readout là
+giờ:phút + giây đã nung sẵn; khi dựng bản động hãy thay nó bằng widget 7 đoạn
+của công cụ (xem docs/mi-watch-face-editor.md).
+
+Nhãn giao diện: PIN · BƯỚC CHÂN · NHỊP TIM · GIÂY · thứ/ngày dạng CHỦ NHẬT.
 
 Giấy phép: MIT.  Thiết kế gốc, không dùng asset của bên thứ ba.
 """
@@ -116,7 +118,8 @@ def main(argv=None) -> int:
         "version": version,
         "device": sp.LAYOUT["device"],
         "canvas": sp.LAYOUT["canvas"],
-        "pivot": sp.PIVOT,
+        "led_panel": sp.LAYOUT["led_panel"],
+        "seconds": sp.LAYOUT["seconds"],
         "corner_radius": sp.CORNER_RADIUS,
         "layers": sp.LAYOUT["layers"],
         "files": [

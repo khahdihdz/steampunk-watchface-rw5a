@@ -1,4 +1,4 @@
-# Đặc tả thiết kế — Steampunk RW5A
+# Đặc tả thiết kế — Steampunk LED RW5A (v2)
 
 ## 1. Ràng buộc phần cứng
 
@@ -6,88 +6,103 @@
 |---|---|---|
 | Màn hình | LCD 2.0", 320 × 385 px, 251 ppi | Vẽ 1:1, không scale |
 | Bo góc | bán kính ≈ 46 px | Nội dung phải nằm trong vùng an toàn |
-| Tấm nền | LCD (không phải AMOLED) | Nền tối vẫn tốt, nhưng tránh chi tiết < 1 px |
+| Tấm nền | LCD | Chữ nhỏ < 1 px sẽ nhoè, segment phải ≥ 2 px |
 | Hệ điều hành | HyperOS (RTOS) | Không có Watch Face Format, không có APK |
-
-Vùng an toàn: chữ và số nằm trong `inset 14 px`, bo góc 40 px. Bốn góc của
-`face.png` phải tối (luma < 70) để nếu máy cắt thêm vài pixel cũng không mất gì.
 
 ## 2. Bố cục
 
 ```
  y=0    ┌──────────────────────────┐  bo góc 46
- 10     │   ⚙  [ AETHER ]  ⚙      │  bảng tên, dải 10–50
- 56     │        ╭────────╮        │
-        │      ╭─┤  dial  ├─╮      │  tâm (160,160), R=104
- 160    │      │ │  ✳     │ │      │  mặt số R=87
-        │      ╰─┤        ├─╯      │
- 264    │        ╰────────╯        │
- 272    │  ┌────────────────────┐  │
-        │  │ (25) (78%) (6.4k)  │  │  3 cửa sổ Φ54, tâm y=312
- 362    │  └────────────────────┘  │
+ 18     │   ⚙  [ AETHER ]  ⚙      │  bảng tên 18–54
+ 64     │  ╭────────────────────╮  │
+        │  │  10:09       36    │  │  khung LED 64–182
+        │  │      (GIÂY)        │  │
+ 182    │  ╰────────────────────╯  │
+ 192    │    CHỦ NHẬT · 25/10/2026  │  dải ngày 192–226
+ 236    │  ┌────────────────────┐  │
+        │  │ [78%] [6428] [72]  │  │  3 cửa sổ 82×42, tâm y=290
+ 356    │  └────────────────────┘  │  nhãn PIN / BƯỚC CHÂN / NHỊP TIM
         └──────────────────────────┘
 ```
 
-Toạ độ và bán kính lấy từ `assets/layout.json`; không hard-code trong script.
+Toạ độ lấy từ `assets/layout.json`; script không hard-code khung.
 
 ## 3. Bảng màu
 
 | Token | Hex | Dùng cho |
 |---|---|---|
-| `ink` | `#120c08` | viền kim, chữ khắc, đáy sâu |
-| `iron` | `#1c1512` | nền gang |
-| `iron_hi` | `#33261d` | nền gang vùng sáng |
-| `brass_dark` | `#6b4519` | bóng đồng, rãnh khắc |
-| `brass` | `#c8963e` | thân đồng chính |
-| `brass_hi` | `#f6d894` | highlight, vạch phút lớn |
-| `copper` | `#a9603a` | điểm nhấn đồng đỏ |
-| `patina` | `#2f6f66` | verdigris (oxy hoá) |
-| `parchment` | `#eadcbb` | số La Mã, giá trị |
-| `ember` | `#e2603a` | kim giây (màu nóng duy nhất) |
+| `ink` | `#120c08` | nền sâu, viền khung |
+| `iron` / `iron_hi` | `#1c1512` / `#33261d` | nền gang |
+| `brass_dark` | `#6b4519` | bóng đồng |
+| `brass` | `#c8963e` | khung, vành |
+| `brass_hi` | `#f6d894` | highlight, chữ khắc |
+| `copper` | `#a9603a` | điểm nhấn |
+| `patina` | `#2f6f66` | verdigris |
+| `parchment` | `#eadcbb` | chữ serif |
+| LED chính | `#ffb340` | giờ:phút, PIN, BƯỚC CHÂN, NHỊP TIM |
+| LED giây | `#ff5b3a` | hai chữ số giây (màu nóng duy nhất) |
+| LED tắt | `#1b100e` | segment không sáng |
 
-Tương phản chữ `parchment` trên nền mặt số tối đạt ≈ 9:1 (WCAG AAA cho chữ lớn).
+Tương phản `#ffb340` trên nền `#0b0908` ≈ 9,5:1.
 
-## 4. Layer và thứ tự z
+## 4. Thông số 7 đoạn
 
-| ID | Tệp | z | Động | Ghi chú |
-|---|---|---|---|---|
-| `00_backplate` | `layers/00_backplate.png` | 0 | – | nền, bánh răng mờ, rivet, vignette |
-| `01_nameplate` | `layers/01_nameplate.png` | 1 | – | bảng tên + 2 bánh răng nhỏ |
-| `02_dial` | `layers/02_dial.png` | 2 | – | vành răng, mặt số, số, vạch |
-| `03_complications` | `layers/03_complications.png` | 3 | – | 3 cửa sổ giá trị |
-| `10_hand_hour` | `layers/10_hand_hour.png` | 10 | 12h/vòng | kim Breguet |
-| `11_hand_minute` | `layers/11_hand_minute.png` | 11 | 60m/vòng | kim Breguet mảnh |
-| `12_hand_second` | `layers/12_hand_second.png` | 12 | 60s/vòng | kim cam, có đối trọng |
-| `13_cap` | `layers/13_cap.png` | 13 | – | ốc giữ kim |
-| `20_glass` | `layers/20_glass.png` | 20 | – | phản sáng; bỏ ở chế độ tối |
+| Tham số | Giờ:phút | Giây |
+|---|---|---|
+| `digit_w` | 36,0 | 16,0 |
+| `digit_h` | 78,0 | 28,0 |
+| `stroke` | 6,4 | 3,6 |
+| `gap` | 1,8 | 1,1 |
+| `spacing` | 9,0 | 3,0 |
+| `colon_w` | 14,0 | 8,0 |
+| `slant` | 0,06 | 0,06 |
 
-Ba layer kim được vẽ **hướng 12 giờ**; khi dựng mặt động chỉ cần xoay quanh
-tâm `(160, 160)` theo đúng chu kỳ, không phải cắt ảnh.
+Quy tắc hình học:
 
-## 5. Kỹ thuật render
+- Mỗi segment là hình lục giác có hai đầu vát 45°.
+- `gap` là khoảng hở giữa hai segment kề nhau. `gap > ~0,3 × stroke` sẽ làm
+  các segment rời rạc, đọc thành "viên thuốc" chứ không thành số.
+- Bản "hot core" được vẽ **mỏng hơn nhưng cùng đường tâm** (`t_center`), và
+  ngắn hơn `inset = (stroke − stroke_hot) / 2`. Nếu chỉ giảm `stroke` mà giữ
+  công thức toạ độ cũ, ruột sáng sẽ bám mép segment và số trông rỗng.
+- `stroke < digit_h / 5` để lỗ giữa số 0 còn nhìn thấy.
 
-- **Supersampling 3×**: mọi hình vẽ trên canvas 960 × 1155 rồi hạ LANCZOS về
-  320 × 385. Cung tròn, răng bánh răng và số La Mã vì thế không bị răng cưa.
-- **Gradient có stop tuỳ ý**: nội suy màu trên 256 mức xám của
-  `Image.linear_gradient` / `radial_gradient` rồi `point()` LUT — nhanh và
-  không cần numpy.
-- **Đồng thau** = gradient dọc (sáng → tối → sáng) phủ qua mask alpha, cộng
-  vân xước mịn và vignette.
-- **Bóng đổ kim** tính **sau khi xoay** (nếu tính trước, bóng sẽ đứng yên ở
-  12 giờ — lỗi đã từng mắc và được kiểm tra bằng pixel test).
-- **Tái lập**: `Image.effect_noise` + `random.Random(seed)` cố định, không dùng
-  `random` toàn cục, zip ghi timestamp `1980-01-01`.
+## 5. Layer và thứ tự z
 
-## 6. Vì sao mặt số tối?
+| ID | z | Động | Ghi chú |
+|---|---|---|---|
+| `00_backplate` | 0 | – | gang, bánh răng mờ, rivet, vignette |
+| `01_nameplate` | 1 | – | bảng AETHER + 2 bánh răng |
+| `02_led_panel` | 2 | – | khung LED + segment chưa sáng (ghost) |
+| `03_readout` | 3 | ✔ | giờ:phút + giây đã nung sẵn |
+| `04_date_strip` | 4 | – | thứ/ngày tiếng Việt |
+| `05_complications` | 5 | – | 3 cửa sổ giá trị |
+| `20_glass` | 20 | – | phản sáng, bỏ khi chế độ tối |
 
-Bản đầu dùng mặt giấy kem. Trên màn hình 2 inch, nền sáng làm 3 kim đồng thau
-chìm vào nền và tổng thể bị "bệt". Đổi sang mặt gang oxy hoá:
+`03_readout` là layer duy nhất phải thay bằng widget khi dựng bản động.
 
-- kim đồng sáng trên nền tối → tương phản cao, đọc giờ trong 0,2 s;
-- giữ được cảm giác "thiết bị cơ khí" thay vì "đồng hồ treo tường";
-- tiết kiệm pin hơn trên LCD (ít pixel sáng).
+## 6. Kỹ thuật render
 
-## 7. Chế độ ban đêm
+- **Supersampling 3×** rồi LANCZOS về 320 × 385 → cạnh segment sắc, không răng cưa.
+- **Glow 3 lớp**: blur 7 / 3,2 / 1,2 px với hệ số 0,30 / 0,55 / 0,70 × `glow`.
+- **Ghost segment**: cùng sprite `88:88` vẽ ở `#1b100e`, **canh đúng vị trí**
+  của số thật (nếu canh giữa khung, ghost sẽ lệch và tạo cảm giác "hai hàng số").
+- **Tái lập**: noise + `random.Random(seed)` cố định, zip timestamp `1980-01-01`.
 
-`face_night.png` = giảm 45% độ sáng, 72% độ bão hoà. Không hạ xuống quá thấp
-(0,3) vì mất hết chi tiết trên tấm nền LCD thường.
+## 7. Vì sao đổi từ analog sang LED
+
+Bản 1.0.0 dùng mâm analog + kim Breguet. Trên màn 2 inch, ba kim đồng thau
+trên nền tối vẫn đọc được nhưng chi tiết cơ khí bị mất khi liếc nhanh. Bản 2.0.0
+đổi sang LED 7 đoạn vì:
+
+- đọc giờ bằng một cái liếc, không cần phân biệt kim giờ/phút;
+- số 7 đoạn là hình học thuần, render sắc ở mọi kích thước;
+- hợp thẩm mỹ "bảng điều khiển hơi nước" (steampunk instrument) hơn đồng hồ đeo tay cổ điển.
+
+Nhãn giao diện chuyển hết sang tiếng Việt (`GIÂY`, `PIN`, `BƯỚC CHÂN`,
+`NHỊP TIM`) để người dùng không phải đoán.
+
+## 8. Chế độ ban đêm
+
+`face_night.png` = giảm 40% độ sáng, 75% độ bão hoà. Không hạ sâu hơn vì LED
+vẫn cần nổi trên nền LCD.

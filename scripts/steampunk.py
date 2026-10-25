@@ -1,10 +1,10 @@
 """
-steampunk.py — Procedural steampunk artwork for the Redmi Watch 5 Active
+steampunk.py — Procedural steampunk/LED artwork for the Redmi Watch 5 Active
 (2.0" LCD, 320x385, rounded-square panel).
 
-Everything is drawn from code: no binary assets are committed except the
-bundled preview render.  Shapes are rasterised at 3x and downsampled with
-LANCZOS so edges stay clean at the watch's native resolution.
+v2.0.0: the analog dial is replaced by a seven-segment LED readout with
+Vietnamese labelling (PIN / BƯỚC CHÂN / NHỊP TIM / GIÂY).  Every pixel is drawn
+from code; shapes are rasterised at 3x and downsampled with LANCZOS.
 
 Coordinate system: device pixels, origin top-left, 320 x 385.
 """
@@ -29,11 +29,15 @@ LAYOUT = json.loads(_LAYOUT_PATH.read_text(encoding="utf-8"))
 
 W: int = LAYOUT["canvas"]["width"]
 H: int = LAYOUT["canvas"]["height"]
-CORNER_RADIUS: int = LAYOUT["canvas"]["corner_radius"]   # physical panel corner radius
-SAFE_INSET: int = LAYOUT["canvas"]["safe_inset"]         # keep text/values inside this inset
-DIAL_CENTER: tuple[int, int] = tuple(LAYOUT["dial"]["center"])   # type: ignore[assignment]
-DIAL_RADIUS: int = LAYOUT["dial"]["radius"]
-PIVOT: tuple[int, int] = tuple(LAYOUT["pivot"])          # type: ignore[assignment]
+CORNER_RADIUS: int = LAYOUT["canvas"]["corner_radius"]
+SAFE_INSET: int = LAYOUT["canvas"]["safe_inset"]
+
+LED = LAYOUT["led_panel"]
+SEC = LAYOUT["seconds"]
+PANEL = tuple(LED["box"])
+DATE_BOX = tuple(LAYOUT["date_strip"]["box"])
+COMP = LAYOUT["complications"]
+PLATE = tuple(COMP["plate"])
 
 SS = 3                     # supersampling factor
 
@@ -101,9 +105,6 @@ class Canvas:
         self.draw.arc(self._s(x0, y0, x1, y1), start, end, fill=fill,
                       width=int(round(width * self.scale)))
 
-    def pieslice(self, x0, y0, x1, y1, start, end, fill=None):
-        self.draw.pieslice(self._s(x0, y0, x1, y1), start, end, fill=fill)
-
     def text(self, xy, s, font_path, size, fill, anchor="mm",
              stroke_width=0.0, stroke_fill=None):
         self.draw.text(self._s(*xy), s, font=self.font(font_path, size),
@@ -125,8 +126,8 @@ def hex_rgb(value: str) -> tuple[int, int, int]:
     return tuple(int(value[i:i + 2], 16) for i in (0, 2, 4))  # type: ignore[return-value]
 
 
-def rgba(value: str, alpha: int = 255) -> tuple[int, int, int, int]:
-    r, g, b = hex_rgb(value)
+def rgba(value: str | tuple[int, int, int], alpha: int = 255) -> tuple[int, int, int, int]:
+    r, g, b = hex_rgb(value) if isinstance(value, str) else value
     return (r, g, b, alpha)
 
 
@@ -164,11 +165,7 @@ def vgrad(size, stops, top: float = 0.0, bottom: float = 1.0) -> Image.Image:
 
 
 def radial(size, stops, center=None, diameter: int | None = None) -> Image.Image:
-    """Radial gradient.
-
-    With ``diameter`` a circular tile is placed at ``center``; without it the
-    gradient is stretched over the whole canvas (good for vignettes/glows).
-    """
+    """Radial gradient; without ``diameter`` it is stretched over the canvas."""
     w, h = size
     if diameter is None:
         gray = Image.radial_gradient("L").resize((w, h), Image.BILINEAR)
@@ -184,7 +181,6 @@ def radial(size, stops, center=None, diameter: int | None = None) -> Image.Image
 
 
 def paint(mask: Image.Image, gradient: Image.Image) -> Image.Image:
-    """Colour a mask with a gradient, preserving the mask's alpha."""
     out = gradient.convert("RGBA").copy()
     out.putalpha(mask.split()[3])
     return out
@@ -204,7 +200,6 @@ def blur(img: Image.Image, radius: float) -> Image.Image:
 
 def gear_mask(size, center, radius, teeth, depth, tooth_ratio=0.58,
               hub: float = 0.0) -> Image.Image:
-    """Toothed ring (or solid disc when hub > 0)."""
     cx, cy = center
     c = Canvas(size)
     pts = []
@@ -235,7 +230,6 @@ def rrect_mask(size, box, radius) -> Image.Image:
 
 
 def screen_mask(size=(W, H), radius=CORNER_RADIUS) -> Image.Image:
-    """The panel's physical rounded-square outline."""
     return rrect_mask(size, (0, 0, size[0], size[1]), radius)
 
 
@@ -243,9 +237,7 @@ def screen_mask(size=(W, H), radius=CORNER_RADIUS) -> Image.Image:
 # Textures
 # --------------------------------------------------------------------------- #
 
-def brushed_texture(size, angle: str = "v", strength: int = 10,
-                    seed: int = 7) -> Image.Image:
-    """Fine directional grain, pinned to a seed so builds are reproducible."""
+def brushed_texture(size, angle: str = "v", strength: int = 10) -> Image.Image:
     w, h = size
     noise = Image.effect_noise(size, 26).convert("L")
     noise = noise.filter(ImageFilter.GaussianBlur(0.6))
@@ -253,16 +245,12 @@ def brushed_texture(size, angle: str = "v", strength: int = 10,
         noise = noise.resize((max(2, w // 6), h), Image.BILINEAR).resize(size, Image.BILINEAR)
     else:
         noise = noise.resize((w, max(2, h // 6)), Image.BILINEAR).resize(size, Image.BILINEAR)
-    out = Image.new("RGBA", size, (255, 255, 255, 0))
+    out = Image.new("RGBA", size, (255, 228, 180, 0))
     out.putalpha(noise.point(lambda v: int(v * strength / 255)))
-    # deterministic tint shuffle so the grain is not pure grey
-    tint = Image.new("RGBA", size, (255, 228, 180, 0))
-    tint.putalpha(out.split()[3])
-    return tint
+    return out
 
 
-def patina_stains(size, palette, count: int = 7, seed: int = 3) -> Image.Image:
-    """Soft oxidised copper/verdigris blooms for an aged look."""
+def patina_stains(size, palette, count: int = 6, seed: int = 3) -> Image.Image:
     w, h = size
     layer = Image.new("RGBA", size, (0, 0, 0, 0))
     rnd = _rng(seed)
@@ -270,16 +258,13 @@ def patina_stains(size, palette, count: int = 7, seed: int = 3) -> Image.Image:
         d = int(rnd.uniform(40, 130))
         cx = int(rnd.uniform(0, w))
         cy = int(rnd.uniform(0, h))
-        blob = Image.new("RGBA", size, (0, 0, 0, 0))
-        cell = Image.radial_gradient("L").resize((d, d), Image.BILINEAR)
-        alpha = cell.point(lambda v: int(max(0, (200 - v)) * 0.16))
         spot = Image.new("RGBA", size, rgba(palette["patina"]))
         spot.putalpha(Image.new("L", size, 0))
+        cell = Image.radial_gradient("L").resize((d, d), Image.BILINEAR)
         spot.paste(rgba(palette["patina"], 255), (int(cx - d / 2), int(cy - d / 2)), cell)
         spot = spot.filter(ImageFilter.GaussianBlur(d * 0.18))
         spot.putalpha(spot.split()[3].point(lambda v: int(v * 0.13)))
-        blob.alpha_composite(spot)
-        layer.alpha_composite(blob)
+        layer.alpha_composite(spot)
     return layer
 
 
@@ -292,7 +277,7 @@ def vignette(size, strength: float = 0.55) -> Image.Image:
     w, h = size
     g = Image.radial_gradient("L").resize((w, h), Image.BILINEAR)
     dark = Image.new("RGBA", size, (6, 4, 3, 255))
-    dark.putalpha(g.point(lambda v: int((255 - v) * 0 + v * strength)))
+    dark.putalpha(g.point(lambda v: int(v * strength)))
     return dark
 
 
@@ -309,15 +294,13 @@ def rivet(size, cx, cy, r, palette, light=(255, 240, 210, 110)) -> Image.Image:
     return c.finish()
 
 
-def engrave(c: Canvas, xy, s, font_path, size, dark, light,
-            anchor="mm", depth=0.9):
+def engrave(c: Canvas, xy, s, font_path, size, dark, light, anchor="mm", depth=0.9):
     """Chiselled text: light edge below, dark groove on top."""
     c.text((xy[0], xy[1] + depth), s, font_path, size, light, anchor=anchor)
     c.text(xy, s, font_path, size, dark, anchor=anchor)
 
 
-def drop_shadow(img: Image.Image, offset=(1.4, 2.2), radius=2.0,
-                alpha=90) -> Image.Image:
+def drop_shadow(img: Image.Image, offset=(1.4, 2.2), radius=2.0, alpha=90) -> Image.Image:
     a = img.split()[3].point(lambda v: int(v * alpha / 255))
     chan = Image.new("L", img.size, 0)
     chan.paste(a, (int(offset[0]), int(offset[1])))
@@ -328,12 +311,128 @@ def drop_shadow(img: Image.Image, offset=(1.4, 2.2), radius=2.0,
 
 
 # --------------------------------------------------------------------------- #
-# Layers
+# Seven-segment renderer
 # --------------------------------------------------------------------------- #
 
-ROMAN = ["XII", "I", "II", "III", "IV", "V", "VI",
-         "VII", "VIII", "IX", "X", "XI"]
+SEGMENTS = {
+    "0": "abcdef", "1": "bc", "2": "abdeg", "3": "abcdg", "4": "bcfg",
+    "5": "acdfg", "6": "acdefg", "7": "abc", "8": "abcdefg", "9": "abcdfg",
+    "-": "g", " ": "",
+}
 
+
+def _bar_h(xa: float, xb: float, yc: float, t: float):
+    return [(xa + t / 2, yc - t / 2), (xb - t / 2, yc - t / 2), (xb, yc),
+            (xb - t / 2, yc + t / 2), (xa + t / 2, yc + t / 2), (xa, yc)]
+
+
+def _bar_v(xc: float, ya: float, yb: float, t: float):
+    return [(xc - t / 2, ya + t / 2), (xc, ya), (xc + t / 2, ya + t / 2),
+            (xc + t / 2, yb - t / 2), (xc, yb), (xc - t / 2, yb - t / 2)]
+
+
+def _segments(ch: str, ox: float, oy: float, dw: float, dh: float,
+              t: float, gap: float, t_center: float | None = None,
+              inset: float = 0.0):
+    """Polygons for one character, origin top-left of its cell.
+
+    ``t_center`` keeps thin (hot-core) passes on the same centreline as the
+    full-thickness pass, ``inset`` trims the segment length symmetrically.
+    """
+    tc = t if t_center is None else t_center
+    xr, yb, ym = ox + dw, oy + dh, oy + dh / 2
+    lo, hi = gap + inset, gap + inset
+    segs = SEGMENTS.get(ch, "")
+    out = []
+    if "a" in segs:
+        out.append(_bar_h(ox + lo, xr - hi, oy + tc / 2, t))
+    if "g" in segs:
+        out.append(_bar_h(ox + lo, xr - hi, ym, t))
+    if "d" in segs:
+        out.append(_bar_h(ox + lo, xr - hi, yb - tc / 2, t))
+    if "f" in segs:
+        out.append(_bar_v(ox + tc / 2, oy + lo + tc / 2, ym - hi, t))
+    if "b" in segs:
+        out.append(_bar_v(xr - tc / 2, oy + lo + tc / 2, ym - hi, t))
+    if "e" in segs:
+        out.append(_bar_v(ox + tc / 2, ym + lo, yb - hi - tc / 2, t))
+    if "c" in segs:
+        out.append(_bar_v(xr - tc / 2, ym + lo, yb - hi - tc / 2, t))
+    return out
+
+
+def seven_seg_width(text: str, cfg) -> float:
+    dw, sp, cw = cfg["digit_w"], cfg["spacing"], cfg["colon_w"]
+    total = sum(cw if ch == ":" else dw for ch in text) + sp * max(len(text) - 1, 0)
+    if cfg.get("slant"):
+        total += cfg["slant"] * cfg["digit_h"]
+    return total
+
+
+def render_seven_seg(text: str, cfg, color, stroke: float | None = None,
+                     scale: int = SS) -> Image.Image:
+    """Render a seven-segment string; returns an RGBA sprite at device pixels."""
+    dw, dh = cfg["digit_w"], cfg["digit_h"]
+    sp, cw = cfg["spacing"], cfg["colon_w"]
+    base_t = cfg["stroke"]
+    t = base_t if stroke is None else stroke
+    gap = cfg["gap"]
+    slant = cfg.get("slant", 0.0)
+    inset = max(0.0, (base_t - t) / 2)
+
+    base_w = sum(cw if ch == ":" else dw for ch in text) + sp * max(len(text) - 1, 0)
+    pad = abs(slant) * dh + 2
+    width = int(math.ceil(base_w + pad))
+    height = int(math.ceil(dh))
+
+    c = Canvas((width, height), scale=scale)
+    x = 0.0
+    for ch in text:
+        if ch == ":":
+            dot = max(1.8, base_t * 0.92)
+            for cy in (dh * 0.31, dh * 0.69):
+                c.rrect(x + cw / 2 - dot / 2, cy - dot / 2,
+                        x + cw / 2 + dot / 2, cy + dot / 2, dot * 0.34, fill=color)
+            x += cw + sp
+            continue
+        for poly in _segments(ch, x, 0, dw, dh, t, gap, t_center=base_t, inset=inset):
+            c.polygon(poly, fill=color)
+        x += dw + sp
+
+    img = c.finish()
+    if slant:
+        w, h = img.size
+        out = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+        sheared = img.transform((w, h), Image.AFFINE,
+                                (1, -slant, slant * dh, 0, 1, 0),
+                                resample=Image.BICUBIC)
+        out.alpha_composite(sheared)
+        return out
+    return img
+
+
+def led_text(text: str, cfg, color: str, glow: int = 120,
+             scale: int = SS) -> Image.Image:
+    """Lit LED string: halo + glow + body + hot core."""
+    base = render_seven_seg(text, cfg, rgba(color), scale=scale)
+    hot = render_seven_seg(text, cfg, rgba(mix(hex_rgb(color), (255, 255, 255), 0.62)),
+                           stroke=cfg["stroke"] * 0.46, scale=scale)
+    alpha = base.split()[3]
+
+    out = Image.new("RGBA", base.size, (0, 0, 0, 0))
+    for radius, factor in ((7.0, 0.30), (3.2, 0.55), (1.2, 0.70)):
+        halo = Image.new("RGBA", base.size, rgba(color, 255))
+        halo.putalpha(alpha.filter(ImageFilter.GaussianBlur(radius))
+                      .point(lambda v, f=factor: int(v * f * glow / 255)))
+        out.alpha_composite(halo)
+    out.alpha_composite(base)
+    out.alpha_composite(hot)
+    return out
+
+
+# --------------------------------------------------------------------------- #
+# Layers
+# --------------------------------------------------------------------------- #
 
 def backplate_layer(palette, fonts, size=(W, H)) -> Image.Image:
     w, h = size
@@ -341,16 +440,14 @@ def backplate_layer(palette, fonts, size=(W, H)) -> Image.Image:
                         (0.42, hex_rgb(palette["iron"])),
                         (1.0, (10, 7, 5))]).convert("RGBA")
 
-    # Ghost gear works etched into the background plate.
-    ghosts = [(-6, 26, 86, 22, 9, 10), (326, 118, 104, 26, 11, 8),
-              (34, 402, 78, 18, 8, 7)]
+    ghosts = [(-12, 22, 84, 20, 9, 11), (330, 300, 92, 24, 10, 9),
+              (26, 392, 72, 18, 8, 8)]
     for cx, cy, r, teeth, depth, alpha in ghosts:
         m = gear_mask(size, (cx, cy), r, teeth, depth, hub=r * 0.42)
         base.alpha_composite(solid(m, rgba(palette["brass"], alpha)))
 
     base.alpha_composite(patina_stains(size, palette))
 
-    # Riveted frame just inside the physical corner radius.
     frame = Canvas(size)
     frame.rrect(6, 6, w - 6, h - 6, CORNER_RADIUS - 4,
                 outline=rgba(palette["brass_dark"], 150), width=2.2)
@@ -358,8 +455,8 @@ def backplate_layer(palette, fonts, size=(W, H)) -> Image.Image:
                 outline=(255, 235, 200, 26), width=1.0)
     base.alpha_composite(frame.finish())
 
-    for cx, cy in [(30, 30), (w - 30, 30), (30, h - 30), (w - 30, h - 30)]:
-        base.alpha_composite(rivet(size, cx, cy, 5.4, palette))
+    for cx, cy in [(29, 29), (w - 29, 29), (29, h - 29), (w - 29, h - 29)]:
+        base.alpha_composite(rivet(size, cx, cy, 5.2, palette))
 
     base.alpha_composite(brushed_texture(size, "v", 9))
     base.alpha_composite(vignette(size, 0.62))
@@ -370,360 +467,240 @@ def nameplate_layer(palette, fonts, size=(W, H)) -> Image.Image:
     w, h = size
     out = Image.new("RGBA", size, (0, 0, 0, 0))
 
-    # two small idler gears flanking the plate
-    for cx, cy, r, teeth in [(40, 30, 14, 9), (w - 40, 30, 12, 8)]:
+    for cx, cy, r, teeth in [(42, 36, 13, 9), (w - 42, 36, 11, 8)]:
         m = gear_mask(size, (cx, cy), r, teeth, 4, hub=r * 0.34)
-        out.alpha_composite(paint(m, radial(size, [(0.0, hex_rgb(palette["brass_hi"])),
-                                                   (0.55, hex_rgb(palette["brass"])),
-                                                   (1.0, hex_rgb(palette["brass_dark"]))],
-                                          (cx, cy), int(r * 2.6))))
-        out.alpha_composite(drop_shadow(paint(m, Image.new("RGBA", size, (0, 0, 0, 255))),
-                                        (0.8, 1.4), 1.6, 70))
+        out.alpha_composite(paint(m, radial(size,
+                                            [(0.0, hex_rgb(palette["brass_hi"])),
+                                             (0.55, hex_rgb(palette["brass"])),
+                                             (1.0, hex_rgb(palette["brass_dark"]))],
+                                            (cx, cy), int(r * 2.6))))
 
-    box = (62, 10, w - 62, 50)
-    mask = rrect_mask(size, box, 15)
+    box = (62, 18, w - 62, 54)
+    mask = rrect_mask(size, box, 14)
     out.alpha_composite(drop_shadow(solid(mask, (0, 0, 0, 255)), (0.6, 1.8), 2.0, 80))
     out.alpha_composite(paint(mask, vgrad(size, [(0.0, hex_rgb(palette["brass_hi"])),
                                                  (0.34, hex_rgb(palette["brass"])),
                                                  (1.0, hex_rgb(palette["brass_dark"]))])))
-    inner = rrect_mask(size, (box[0] + 3, box[1] + 3, box[2] - 3, box[3] - 3), 12)
+    inner = rrect_mask(size, (box[0] + 3, box[1] + 3, box[2] - 3, box[3] - 3), 11)
     out.alpha_composite(paint(inner, vgrad(size, [(0.0, hex_rgb(palette["copper_dark"])),
                                                   (1.0, hex_rgb(palette["ink"]))],
                                           top=0.0, bottom=0.5)))
 
     c = Canvas(size)
     engrave(c, ((box[0] + box[2]) / 2, (box[1] + box[3]) / 2 + 0.5),
-            "AETHER", fonts["serif"], 15,
+            "AETHER", fonts["serif"], 14,
             rgba(palette["brass_hi"], 235), (0, 0, 0, 150), depth=1.0)
     out.alpha_composite(c.finish())
     return out
 
 
-def dial_layer(palette, fonts, values, size=(W, H)) -> Image.Image:
-    cx, cy = DIAL_CENTER
-    r = DIAL_RADIUS
+def time_layout(second_text: str = "00"):
+    """Shared geometry for the lit clock, the seconds block and the ghost."""
+    clock_w = seven_seg_width("88:88", LED)
+    sec_w = seven_seg_width(second_text, SEC)
+    group = clock_w + 10 + sec_w
+    gx = (PANEL[0] + PANEL[2]) / 2 - group / 2
+    return gx, clock_w, sec_w
+
+
+def led_panel_layer(palette, fonts, size=(W, H)) -> Image.Image:
+    x0, y0, x1, y1 = PANEL
     out = Image.new("RGBA", size, (0, 0, 0, 0))
 
-    # 1. toothed outer bezel
-    teeth = gear_mask(size, (cx, cy), r, 64, 5, tooth_ratio=0.55)
-    metal = radial(size, [(0.0, hex_rgb(palette["brass_dark"])),
-                          (0.62, hex_rgb(palette["brass"])),
-                          (0.80, hex_rgb(palette["brass_hi"])),
-                          (0.93, hex_rgb(palette["brass"])),
-                          (1.0, hex_rgb(palette["brass_dark"]))],
-                   (cx, cy), (r + 6) * 2)
-    out.alpha_composite(drop_shadow(solid(teeth, (0, 0, 0, 255)), (0.6, 2.4), 3.0, 105))
-    out.alpha_composite(paint(teeth, metal))
+    mask = rrect_mask(size, PANEL, 20)
+    out.alpha_composite(drop_shadow(solid(mask, (0, 0, 0, 255)), (0.5, 2.4), 3.2, 120))
+    out.alpha_composite(paint(mask, vgrad(size,
+                                         [(0.0, hex_rgb(palette["brass_hi"])),
+                                          (0.22, hex_rgb(palette["brass"])),
+                                          (0.55, hex_rgb(palette["copper_dark"])),
+                                          (1.0, hex_rgb(palette["brass_dark"]))],
+                                         top=0.10, bottom=0.62)))
 
-    # 2. engraved bezel band
-    band = Canvas(size)
-    band.circle(cx, cy, r - 2, fill=(255, 255, 255, 255))
-    band.circle(cx, cy, r - 15, fill=(0, 0, 0, 0))
-    out.alpha_composite(paint(band.finish(), radial(
-        size, [(0.0, hex_rgb(palette["brass_dark"])),
-               (0.7, hex_rgb(palette["brass"])),
-               (0.88, hex_rgb(palette["brass_hi"])),
-               (1.0, hex_rgb(palette["brass_dark"]))], (cx, cy), (r + 4) * 2)))
-    c = Canvas(size)
-    c.circle(cx, cy, r - 8.5, outline=rgba(palette["copper_dark"], 190), width=1.2)
-    c.circle(cx, cy, r - 8.5, outline=(255, 235, 195, 40), width=0.6)
-    # bezel screws
-    for ang in (135, 45, 315, 225):
-        a = math.radians(ang)
-        c.circle(cx + (r - 8) * math.cos(a), cy + (r - 8) * math.sin(a), 1.6,
-                 fill=rgba(palette["brass_hi"]))
-    out.alpha_composite(c.finish())
+    inner_box = (x0 + 7, y0 + 7, x1 - 7, y1 - 7)
+    inner = rrect_mask(size, inner_box, 14)
+    out.alpha_composite(paint(inner, vgrad(size, [(0.0, (13, 10, 9)),
+                                                  (0.55, (8, 6, 5)),
+                                                  (1.0, (14, 11, 9))])))
 
-    # 3. oxidised iron dial face (high contrast for a 2.0" LCD)
-    face_r = r - 17
-    face_mask = round_mask(size, (cx, cy), face_r)
-    enamel = radial(size, [(0.0, (62, 49, 36)),
-                           (0.42, (42, 32, 24)),
-                           (0.80, (25, 18, 13)),
-                           (1.0, (11, 7, 5))],
-                    (cx - 12, cy - 16), int(face_r * 2.6))
-    out.alpha_composite(paint(face_mask, enamel))
+    # unlit segments — the tell-tale LED look, aligned under the lit digits
+    gx, clock_w, sec_w = time_layout("88")
+    ghost = render_seven_seg("88:88", dict(LED), rgba(LED["color_ghost"]))
+    out.alpha_composite(ghost, (int(gx), 72))
+    ghost_sec = render_seven_seg("88", dict(SEC), rgba(SEC["color_ghost"]))
+    out.alpha_composite(ghost_sec, (int(gx + clock_w + 10),
+                                    int(72 + (LED["digit_h"] - SEC["digit_h"]))))
 
-    # concentric lathe marks
-    brush = Canvas(size)
-    rnd = _rng(5)
-    for _ in range(64):
-        rad = rnd.uniform(8, face_r - 3)
-        start = rnd.uniform(0, 360)
-        brush.arc(cx - rad, cy - rad, cx + rad, cy + rad,
-                  start, start + rnd.uniform(25, 120),
-                  fill=(255, 226, 180, rnd.randint(6, 16)), width=0.7)
-    bimg = brush.finish()
-    bimg.putalpha(ImageChops.multiply(bimg.split()[3], face_mask.split()[3]))
-    out.alpha_composite(bimg)
-
-    # 4. brass minute track + cream roman numerals
-    c = Canvas(size)
-    c.circle(cx, cy, face_r - 3.5, outline=rgba(palette["brass"], 130), width=0.9)
-    for i in range(60):
-        a = math.radians(i * 6 - 90)
-        major = i % 5 == 0
-        r_out = face_r - 6
-        r_in = r_out - (9 if major else 4.5)
-        c.line([(cx + r_in * math.cos(a), cy + r_in * math.sin(a)),
-                (cx + r_out * math.cos(a), cy + r_out * math.sin(a))],
-               fill=rgba(palette["brass_hi"] if major else palette["brass"],
-                         235 if major else 140),
-               width=1.6 if major else 0.7)
-    for i, numeral in enumerate(ROMAN):
-        a = math.radians(i * 30 - 90)
-        tx = cx + (face_r - 24) * math.cos(a)
-        ty = cy + (face_r - 24) * math.sin(a)
-        c.text((tx + 0.7, ty + 0.9), numeral, fonts["serif"], 12.5, (0, 0, 0, 175))
-        c.text((tx, ty), numeral, fonts["serif"], 12.5,
-               rgba(palette["parchment"], 242))
-
-    # inner engraved rings + compass rose
-    c.circle(cx, cy, face_r - 43, outline=rgba(palette["brass"], 105), width=0.9)
-    c.circle(cx, cy, face_r - 45, outline=(0, 0, 0, 130), width=0.7)
-    for ang in range(0, 360, 45):
-        a = math.radians(ang)
-        c.line([(cx + 18 * math.cos(a), cy + 18 * math.sin(a)),
-                (cx + (face_r - 46) * math.cos(a), cy + (face_r - 46) * math.sin(a))],
-               fill=rgba(palette["brass"], 34), width=0.7)
-    c.text((cx, cy + 38), "· 1887 ·", fonts["mono"], 6,
-           rgba(palette["brass"], 150), anchor="mm")
-    out.alpha_composite(c.finish())
-
-    # 5. inner shadow where the bezel meets the enamel
+    # inner shadow where glass meets the bezel
     ring = Canvas(size)
-    ring.circle(cx, cy, face_r, outline=(0, 0, 0, 120), width=3.2)
-    out.alpha_composite(blur(ring.finish(), 1.2))
+    ring.rrect(*inner_box, radius=14, outline=(0, 0, 0, 170), width=3.0)
+    out.alpha_composite(blur(ring.finish(), 1.4))
+
+    # brushed glare across the glass
+    glare = Canvas(size)
+    glare.polygon([(x0 + 10, y1 - 10), (x1 - 40, y0 + 8),
+                   (x1 - 18, y0 + 8), (x0 + 34, y1 - 10)],
+                  fill=(255, 255, 240, 8))
+    out.alpha_composite(blur(glare.finish(), 3))
     return out
 
 
-def gauge_arc(c: Canvas, cx, cy, r, start, end, frac, palette,
-              width=4.0, track_alpha=70):
-    c.arc(cx - r, cy - r, cx + r, cy + r, start, end,
-          fill=rgba(palette["copper_dark"], track_alpha), width=width)
-    if frac <= 0:
-        return
-    c.arc(cx - r, cy - r, cx + r, cy + r, start,
-          start + (end - start) * max(0.0, min(1.0, frac)),
-          fill=rgba(palette["brass_hi"], 235), width=width)
+def readout_layer(palette, fonts, time, size=(W, H)) -> Image.Image:
+    hour, minute, second = time
+    out = Image.new("RGBA", size, (0, 0, 0, 0))
+
+    cfg = dict(LED)
+    gx, clock_w, _ = time_layout(f"{second:02d}")
+    clock = led_text(f"{hour:02d}:{minute:02d}", cfg, LED["color"])
+    out.alpha_composite(clock, (int(gx), 72))
+
+    sec_cfg = dict(SEC)
+    sec = led_text(f"{second:02d}", sec_cfg, SEC["color"], glow=170)
+    sec_x = int(gx + clock_w + 10)
+    out.alpha_composite(sec, (sec_x, int(72 + (LED["digit_h"] - SEC["digit_h"]))))
+
+    c = Canvas(size)
+    c.text((sec_x + sec.width / 2, 163), "GIÂY", fonts["mono"], 6.5,
+           rgba(palette["brass_hi"], 190), anchor="mm")
+    out.alpha_composite(c.finish())
+    return out
+
+
+def date_strip_layer(palette, fonts, values, size=(W, H)) -> Image.Image:
+    x0, y0, x1, y1 = DATE_BOX
+    out = Image.new("RGBA", size, (0, 0, 0, 0))
+
+    mask = rrect_mask(size, DATE_BOX, 12)
+    out.alpha_composite(drop_shadow(solid(mask, (0, 0, 0, 255)), (0.4, 1.8), 2.4, 90))
+    out.alpha_composite(paint(mask, vgrad(size,
+                                         [(0.0, hex_rgb(palette["brass"])),
+                                          (0.40, hex_rgb(palette["copper_dark"])),
+                                          (1.0, hex_rgb(palette["ink"]))],
+                                         top=0.40, bottom=0.68)))
+    inner = rrect_mask(size, (x0 + 3, y0 + 3, x1 - 3, y1 - 3), 10)
+    out.alpha_composite(paint(inner, vgrad(size, [(0.0, (26, 18, 13)),
+                                                  (1.0, (12, 8, 6))],
+                                          top=0.40, bottom=0.68)))
+
+    label = (f"{values['weekday']} · {values['day']:02d}/{values['month']:02d}/"
+             f"{values['year']}")
+    c = Canvas(size)
+    c.text(((x0 + x1) / 2, (y0 + y1) / 2 + 0.5), label, fonts["serif"], 10.5,
+           rgba(palette["parchment"], 232), anchor="mm")
+    out.alpha_composite(c.finish())
+    return out
+
+
+def _window(out, palette, box, size):
+    """Inset brass window (rectangular gauge slot) punched into the plate."""
+    w, h = box[2] - box[0], box[3] - box[1]
+    radius = min(20.0, h / 2)
+    c = Canvas(size)
+    c.rrect(box[0] - 3, box[1] - 3, box[2] + 3, box[3] + 3, radius + 2,
+            fill=rgba(palette["ink"], 190))
+    c.rrect(box[0] - 1.5, box[1] - 1.5, box[2] + 1.5, box[3] + 1.5, radius + 1,
+            fill=rgba(palette["brass"]))
+    c.rrect(*box, radius=radius, fill=(8, 6, 5, 255))
+    c.rrect(*box, radius=radius, outline=(0, 0, 0, 170), width=1.2)
+    out.alpha_composite(c.finish())
+
+    gl = Canvas(size)
+    gl.rrect(box[0] + 3, box[1] + 3, box[2] - 3, box[3] - 10, radius,
+             outline=(255, 250, 230, 26), width=1.2)
+    out.alpha_composite(blur(gl.finish(), 0.8))
 
 
 def complications_layer(palette, fonts, values, size=(W, H)) -> Image.Image:
-    w, h = size
-    box = (24, 272, w - 24, 362)
     out = Image.new("RGBA", size, (0, 0, 0, 0))
 
-    mask = rrect_mask(size, box, 18)
+    mask = rrect_mask(size, PLATE, 18)
     out.alpha_composite(drop_shadow(solid(mask, (0, 0, 0, 255)), (0.5, 2.0), 2.6, 95))
-    out.alpha_composite(paint(mask, vgrad(size, [(0.0, hex_rgb(palette["brass_hi"])),
-                                                 (0.18, hex_rgb(palette["brass"])),
-                                                 (0.55, hex_rgb(palette["copper_dark"])),
-                                                 (1.0, hex_rgb(palette["ink"]))],
-                                          top=0.70, bottom=0.96)))
-    inset = rrect_mask(size, (box[0] + 4, box[1] + 4, box[2] - 4, box[3] - 4), 15)
+    out.alpha_composite(paint(mask, vgrad(size,
+                                         [(0.0, hex_rgb(palette["brass_hi"])),
+                                          (0.16, hex_rgb(palette["brass"])),
+                                          (0.52, hex_rgb(palette["copper_dark"])),
+                                          (1.0, hex_rgb(palette["ink"]))],
+                                         top=0.62, bottom=0.96)))
+    inset = rrect_mask(size, (PLATE[0] + 4, PLATE[1] + 4,
+                              PLATE[2] - 4, PLATE[3] - 4), 15)
     out.alpha_composite(paint(inset, vgrad(size, [(0.0, hex_rgb(palette["iron_hi"])),
-                                                  (1.0, (12, 8, 6))],
-                                           top=0.70, bottom=0.96)))
+                                                  (1.0, (11, 8, 6))],
+                                           top=0.62, bottom=0.96)))
 
-    for cx in (30, w - 30):
-        out.alpha_composite(rivet(size, cx, (box[1] + box[3]) / 2, 4.2, palette))
+    for cx in (PLATE[0] + 11, PLATE[2] - 11):
+        out.alpha_composite(rivet(size, cx, PLATE[1] + 13, 4.0, palette))
 
-    centers = [(78, 312, "DATE"), (160, 312, "POWER"), (242, 312, "STEP")]
+    centers = COMP["centers"]
+    labels = COMP["labels"]
+    win_w, win_h = COMP["window"]
+    boxes = [(cx - win_w / 2, cy - win_h / 2, cx + win_w / 2, cy + win_h / 2)
+             for cx, cy in centers]
+    for box in boxes:
+        _window(out, palette, box, size)
+
+    medium = {"digit_w": 16.0, "digit_h": 26.0, "stroke": 3.8, "gap": 1.8,
+              "spacing": 3.0, "colon_w": 7.0, "slant": 0.04}
+    wide = {"digit_w": 13.5, "digit_h": 24.0, "stroke": 3.2, "gap": 1.6,
+            "spacing": 2.4, "colon_w": 6.0, "slant": 0.04}
+
+    battery = led_text(f"{values['battery']:02d}", medium, LED["color"], glow=110)
+    heart = led_text(f"{values['heart']:02d}", medium, LED["color"], glow=110)
+    steps = led_text(str(values["steps"]), wide, LED["color"], glow=95)
+
+    def place(sprite, cx, cy, dx=0.0, dy=0.0):
+        out.alpha_composite(sprite, (int(cx - sprite.width / 2 + dx),
+                                     int(cy - sprite.height / 2 + dy)))
+
+    place(battery, centers[0][0] - 5, centers[0][1])
+    place(steps, centers[1][0], centers[1][1])
+    place(heart, centers[2][0], centers[2][1])
+
     c = Canvas(size)
-    for (cx, cy, _label), key in zip(centers, ("date", "battery", "steps")):
-        c.circle(cx, cy, 27, outline=rgba(palette["brass_dark"], 210), width=1.6)
-        c.circle(cx, cy, 24.5, fill=rgba(palette["ink"], 150))
-        c.circle(cx, cy, 24.5, outline=(255, 240, 205, 40), width=0.7)
-    out.alpha_composite(c.finish())
-
-    # date window
-    dcx, dcy, _ = centers[0]
-    c = Canvas(size)
-    engrave(c, (dcx, dcy - 3), str(values["day"]), fonts["serif"], 22,
-            rgba(palette["parchment"], 240), (0, 0, 0, 160), depth=1.0)
-    c.text((dcx, dcy + 13), values["month"], fonts["mono"], 8,
-           rgba(palette["brass_hi"], 220), anchor="mm")
-    out.alpha_composite(c.finish())
-
-    # battery gauge
-    bcx, bcy, _ = centers[1]
-    c = Canvas(size)
-    gauge_arc(c, bcx, bcy, 19, 140, 400, values["battery"] / 100.0, palette, width=3.0)
-    c.text((bcx, bcy - 1), f"{values['battery']}", fonts["serif"], 15,
-           rgba(palette["parchment"], 240), anchor="mm")
-    c.text((bcx, bcy + 11), "%", fonts["mono"], 6.5,
-           rgba(palette["brass_hi"], 200), anchor="mm")
-    out.alpha_composite(c.finish())
-
-    # steps odometer
-    scx, scy, _ = centers[2]
-    c = Canvas(size)
-    steps = values["steps"]
-    label = f"{steps / 1000:.1f}k" if steps >= 1000 else str(steps)
-    c.text((scx, scy - 2), label, fonts["serif"], 16,
-           rgba(palette["parchment"], 240), anchor="mm")
-    c.text((scx, scy + 12), "STEPS", fonts["mono"], 5.6,
-           rgba(palette["brass_hi"], 190), anchor="mm")
-    out.alpha_composite(c.finish())
-
-    # engraved column labels
-    c = Canvas(size)
-    for cx, cy, label in centers:
-        engrave(c, (cx, cy + 35), label, fonts["mono"], 7,
-                rgba(palette["brass_hi"], 190), (0, 0, 0, 170), depth=0.7)
+    c.text((centers[0][0] + 19, centers[0][1] + 3), "%", fonts["mono"], 7.5,
+           rgba(palette["brass_hi"], 225), anchor="mm")
+    for (cx, cy), label in zip(centers, labels):
+        engrave(c, (cx, PLATE[3] - 22), label, fonts["serif"], 8.2,
+                rgba(palette["brass_hi"], 210), (0, 0, 0, 190), depth=0.7)
     out.alpha_composite(c.finish())
     return out
-
-
-def _hand_shape(size, kind, palette, length):
-    """Hand drawn pointing straight up, pivot at DIAL_CENTER."""
-    cx, cy = DIAL_CENTER
-    c = Canvas(size)
-    if kind == "hour":
-        pts = [(0, -length), (2.4, -length + 6), (7.8, -length + 18),
-               (7.8, -length + 28), (3.6, -length + 32),
-               (3.6, 10), (7.2, 14), (0, 22), (-7.2, 14),
-               (-3.6, 10), (-3.6, -length + 32),
-               (-7.8, -length + 28), (-7.8, -length + 18),
-               (-2.4, -length + 6)]
-        ring_y = cy - length + 22
-        ring_r = 5.4
-    elif kind == "minute":
-        pts = [(0, -length), (1.7, -length + 8), (5.6, -length + 28),
-               (4.8, -length + 34), (2.2, -length + 36),
-               (2.2, 9), (5.6, 13), (0, 19), (-5.6, 13),
-               (-2.2, 9), (-2.2, -length + 36),
-               (-4.8, -length + 34), (-5.6, -length + 28),
-               (-1.7, -length + 8)]
-        ring_y = cy - length + 26
-        ring_r = 3.8
-    else:
-        pts = [(0, -length), (1.1, -length + 10), (0.9, 20),
-               (3.6, 26), (0, 34), (-3.6, 26), (-0.9, 20),
-               (-1.1, -length + 10)]
-        ring_y = ring_r = 0
-
-    shape = [(cx + x, cy + y) for x, y in pts]
-    c.polygon(shape, fill=(255, 255, 255, 255))
-
-    if ring_r:
-        # Breguet-style open ring near the tip: punch the hole, keep a rim
-        c.circle(cx, ring_y, ring_r, fill=(0, 0, 0, 0))
-        rim = Canvas(size)
-        rim.circle(cx, ring_y, ring_r + 0.9, fill=(255, 255, 255, 255))
-        rim.circle(cx, ring_y, ring_r, fill=(0, 0, 0, 0))
-        c.img.alpha_composite(rim.img)
-    return c.finish()
-
-
-def hand_layer(palette, kind, length, size=(W, H)) -> Image.Image:
-    mask = _hand_shape(size, kind, palette, length)
-    alpha = mask.split()[3]
-
-    if kind == "second":
-        metal = Image.new("RGBA", size, rgba("#ff8a55"))
-    else:
-        # brushing light across the hand, not the whole canvas
-        metal = vgrad(size, [(0.0, hex_rgb(palette["brass_hi"])),
-                             (0.35, hex_rgb(palette["brass"])),
-                             (0.62, hex_rgb(palette["brass_hi"])),
-                             (0.85, hex_rgb(palette["copper"])),
-                             (1.0, hex_rgb(palette["brass_dark"]))],
-                      top=0.10, bottom=0.62)
-
-    halo = alpha.filter(ImageFilter.MaxFilter(5))
-    ring = ImageChops.subtract(halo, alpha)
-
-    out = Image.new("RGBA", size, (0, 0, 0, 0))
-    outline = Image.new("RGBA", size, rgba(palette["ink"], 235))
-    outline.putalpha(ring)
-    out.alpha_composite(outline)
-    body = paint(mask, metal)
-    out.alpha_composite(body)
-
-    # specular streak along the raised centre
-    gloss = Canvas(size)
-    gloss.line([(DIAL_CENTER[0], DIAL_CENTER[1] - length + 8),
-                (DIAL_CENTER[0], DIAL_CENTER[1] + 6)],
-               fill=(255, 250, 235, 150 if kind != "second" else 90),
-               width=0.8 if kind != "second" else 0.5)
-    g = gloss.finish()
-    g.putalpha(ImageChops.multiply(g.split()[3], alpha))
-    out.alpha_composite(g)
-    return out
-
-
-def cap_layer(palette, size=(W, H)) -> Image.Image:
-    cx, cy = DIAL_CENTER
-    c = Canvas(size)
-    c.circle(cx, cy, 8.0, fill=rgba(palette["brass_dark"]))
-    c.circle(cx, cy, 6.6, fill=rgba(palette["brass"]))
-    c.circle(cx - 1.6, cy - 1.8, 2.4, fill=rgba(palette["brass_hi"]))
-    c.line([(cx - 4.4, cy + 1.2), (cx + 4.4, cy - 1.2)],
-           fill=rgba(palette["ink"], 190), width=1.3)
-    c.circle(cx, cy, 2.0, fill=rgba(palette["copper_dark"]))
-    return c.finish()
 
 
 def glass_layer(size=(W, H)) -> Image.Image:
-    w, h = size
     c = Canvas(size)
-    c.polygon([(20, 12), (150, 12), (60, 150), (12, 150)], fill=(255, 255, 255, 15))
-    c.polygon([(24, 8), (74, 8), (16, 96), (10, 96)], fill=(255, 255, 255, 10))
-    out = c.finish().filter(ImageFilter.GaussianBlur(9))
-    return out
+    c.polygon([(20, 12), (150, 12), (60, 150), (12, 150)], fill=(255, 255, 255, 13))
+    c.polygon([(24, 8), (74, 8), (16, 96), (10, 96)], fill=(255, 255, 255, 9))
+    return c.finish().filter(ImageFilter.GaussianBlur(9))
 
 
 # --------------------------------------------------------------------------- #
 # Composition
 # --------------------------------------------------------------------------- #
 
-HAND_LENGTHS = {k: float(v) for k, v in LAYOUT["hands"].items()}
+def build_static(palette, fonts, values) -> dict[str, Image.Image]:
+    return {
+        "backplate": backplate_layer(palette, fonts),
+        "nameplate": nameplate_layer(palette, fonts),
+        "led_panel": led_panel_layer(palette, fonts),
+        "date_strip": date_strip_layer(palette, fonts, values),
+        "complications": complications_layer(palette, fonts, values),
+        "glass": glass_layer(),
+    }
 
 
-def compose(layers: dict, palette, time=(10, 9, 36), size=(W, H)) -> Image.Image:
-    hour, minute, second = time
+def compose(layers: dict, palette, fonts, time, size=(W, H)) -> Image.Image:
     img = Image.new("RGBA", size, (0, 0, 0, 255))
     img.alpha_composite(layers["backplate"])
-    if "nameplate" in layers:
-        img.alpha_composite(layers["nameplate"])
-    img.alpha_composite(layers["dial"])
+    img.alpha_composite(layers["nameplate"])
+    img.alpha_composite(layers["led_panel"])
+    img.alpha_composite(readout_layer(palette, fonts, time))
+    img.alpha_composite(layers["date_strip"])
     img.alpha_composite(layers["complications"])
-
-    angles = {
-        "hour": (hour % 12) * 30 + minute * 0.5,
-        "minute": minute * 6 + second * 0.1,
-        "second": second * 6,
-    }
-    for kind in ("hour", "minute", "second"):
-        hand = layers[kind]
-        rotated = hand.rotate(-angles[kind], resample=Image.BICUBIC,
-                              center=PIVOT)
-        img.alpha_composite(drop_shadow(rotated, (1.8, 2.6), 2.2, 110))
-        img.alpha_composite(rotated)
-
-    img.alpha_composite(layers["cap"])
     img.alpha_composite(layers["glass"])
     return img
 
 
 def night_variant(img: Image.Image) -> Image.Image:
-    """Low-light variant: dimmed and slightly desaturated for night use."""
+    """Low-light variant: dimmed and slightly desaturated."""
     from PIL import ImageEnhance
-    dim = ImageEnhance.Brightness(img).enhance(0.55)
-    dim = ImageEnhance.Color(dim).enhance(0.72)
+    dim = ImageEnhance.Brightness(img).enhance(0.60)
+    dim = ImageEnhance.Color(dim).enhance(0.75)
     return dim
-
-
-def build_layers(palette, fonts, values) -> dict[str, Image.Image]:
-    return {
-        "backplate": backplate_layer(palette, fonts),
-        "nameplate": nameplate_layer(palette, fonts),
-        "dial": dial_layer(palette, fonts, values),
-        "complications": complications_layer(palette, fonts, values),
-        "hour": hand_layer(palette, "hour", HAND_LENGTHS["hour"]),
-        "minute": hand_layer(palette, "minute", HAND_LENGTHS["minute"]),
-        "second": hand_layer(palette, "second", HAND_LENGTHS["second"]),
-        "cap": cap_layer(palette),
-        "glass": glass_layer(),
-    }
