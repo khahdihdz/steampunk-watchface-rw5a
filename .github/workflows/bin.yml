@@ -85,8 +85,13 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force build\bin | Out-Null
-          $project = (Resolve-Path "project").Path
-          .\compile.exe -b $project "build\bin" "steampunk-rw5a.face" "1461256429"
+          New-Item -ItemType Directory -Force output | Out-Null
+          $project = (Resolve-Path "project\face.fprj").Path
+          $out = (Resolve-Path "build\bin").Path
+          Write-Host "project: $project"
+          Write-Host "out: $out"
+          .\compile.exe -b $project $out "steampunk-rw5a.face" "1461256429"
+          Write-Host "exit: $LASTEXITCODE"
           if (-not (Test-Path "build\bin\steampunk-rw5a.face")) {
             Get-ChildItem -Recurse build | Format-Table FullName, Length
             throw "compile.exe không tạo ra file .face"
