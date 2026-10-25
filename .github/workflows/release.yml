@@ -59,7 +59,7 @@ jobs:
         run: python scripts/build.py --version "${{ steps.version.outputs.value }}"
 
       - name: Verify checksums
-        run: sha256sum -c dist/SHA256SUMS.txt
+        run: cd dist && sha256sum -c SHA256SUMS.txt
 
       - name: Publish release
         env:

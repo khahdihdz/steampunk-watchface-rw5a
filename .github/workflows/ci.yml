@@ -53,7 +53,7 @@ jobs:
           echo "reproducible build ✓"
 
       - name: Verify checksums
-        run: sha256sum -c dist/SHA256SUMS.txt
+        run: cd dist && sha256sum -c SHA256SUMS.txt
 
       - name: Upload preview
         uses: actions/upload-artifact@v4
