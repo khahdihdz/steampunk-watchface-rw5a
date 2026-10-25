@@ -115,6 +115,28 @@ jobs:
             ForEach-Object { "$($_.Hash.ToLower())  steampunk-rw5a.bin" } |
             Set-Content "build\bin\SHA256SUMS.txt"
 
+      - name: Round-trip with vendor unpacker
+        shell: pwsh
+        env:
+          UNPACK_SHA: a76b1dbc3d1c924bc81a6b56da0d1989fa514f99
+        run: |
+          $headers = @{
+            "User-Agent" = "steampunk-rw5a-ci"
+            "Accept"     = "application/vnd.github+json"
+          }
+          $blob = Invoke-RestMethod `
+            -Uri "https://api.github.com/repos/ooflet/Mi-Create/git/blobs/$env:UNPACK_SHA" `
+            -Headers $headers
+          [IO.File]::WriteAllBytes("unpack.exe", [Convert]::FromBase64String($blob.content))
+          New-Item -ItemType Directory -Force verify | Out-Null
+          Push-Location verify
+          ..\unpack.exe ..\build\bin\steampunk-rw5a.bin
+          Pop-Location
+          Get-ChildItem -Recurse verify | Format-Table FullName, Length
+          if (-not (Get-ChildItem -Recurse verify -File | Select-Object -First 1)) {
+            throw "unpack.exe không giải nén được gì"
+          }
+
       - name: Upload binary
         uses: actions/upload-artifact@v4
         with:
@@ -122,4 +144,5 @@ jobs:
           path: |
             build/bin/steampunk-rw5a.bin
             build/bin/SHA256SUMS.txt
+            verify/
           if-no-files-found: error
