@@ -169,13 +169,18 @@ class Project:
         self.widgets: list[dict] = []
         self.images: dict[str, Image.Image] = {}
 
-    def add(self, name: str, img: Image.Image):
+    def add(self, name: str, img: Image.Image, palettize: bool = True):
+        # Bộ nén ảnh của RW5A chỉ nhận tối đa 256 màu cho mỗi ảnh trong
+        # imageList ("Colors count is more than 256 pcs, unsupported now").
+        if palettize and (img.getcolors(maxcolors=256) is None):
+            img = img.quantize(colors=256, method=Image.FASTOCTREE,
+                               dither=Image.FLOYDSTEINBERG).convert("RGBA")
         self.images[name] = img
         img.save(self.img_dir / f"{name}.png", optimize=True)
 
     def add_sheet(self, sheet: Sheet):
         for i, key in enumerate(sheet.order):
-            self.add(f"{sheet.prefix}{i}", sheet.images[key])
+            self.add(f"{sheet.prefix}{i}", sheet.images[key], palettize=True)
 
     def widget(self, **kw):
         self.widgets.append(kw)
@@ -248,7 +253,7 @@ def build(out: Path, fonts: dict, opacity=None) -> Project:
     pct.text((sp.COMP["centers"][0][0] + 19, sp.COMP["centers"][0][1] + 3), "%",
              fonts["mono"], 7.5, sp.rgba(palette["brass_hi"], 225), anchor="mm")
     bg.alpha_composite(pct.finish())
-    proj.add("bg", bg)
+    proj.add("bg", bg, palettize=False)
     element(proj, "bg", "bg", 0, 0)
 
     # ---- glyph ----
@@ -272,7 +277,8 @@ def build(out: Path, fonts: dict, opacity=None) -> Project:
         proj.add_sheet(sheet)
     proj.add("sep", sep.images["/"])
     proj.add("colon", sp.led_text(":", dict(sp.LED), sp.LED["color"], glow=110))
-    proj.add("preview", bg.convert("RGB").resize((120, 108), Image.LANCZOS))
+    proj.add("preview", bg.convert("RGB").resize((120, 108), Image.LANCZOS),
+             palettize=False)
 
     # ---- giờ : phút (mỗi chữ số một widget -> căn tuyệt đối) ----
     geo = clock_geometry()
