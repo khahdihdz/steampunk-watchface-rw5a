@@ -277,7 +277,7 @@ def build(out: Path, fonts: dict, opacity=None) -> Project:
         proj.add_sheet(sheet)
     proj.add("sep", sep.images["/"])
     proj.add("colon", sp.led_text(":", dict(sp.LED), sp.LED["color"], glow=110))
-    proj.add("preview", bg.convert("RGB").resize((120, 108), Image.LANCZOS),
+    proj.add("preview", bg.convert("RGB").resize((180, 216), Image.LANCZOS),
              palettize=False)
 
     # ---- giờ : phút (mỗi chữ số một widget -> căn tuyệt đối) ----
