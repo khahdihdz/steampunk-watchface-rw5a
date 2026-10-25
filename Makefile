@@ -2,7 +2,7 @@ PYTHON ?= python3
 VERSION ?= 0.0.0
 OUT ?= dist
 
-.PHONY: all render check package preview clean
+.PHONY: all render check package preview bin-project clean
 
 all: package
 
@@ -17,6 +17,11 @@ package:
 
 preview: render
 	@echo "→ $(OUT)/preview/preview.png"
+
+bin-project:
+	$(PYTHON) scripts/binface.py --out build/fprj
+	$(PYTHON) scripts/validate_fprj.py build/fprj
+	@echo "→ build/fprj/face.fprj (biên dịch: xem docs/watchface-bin.md)"
 
 clean:
 	rm -rf dist dist2

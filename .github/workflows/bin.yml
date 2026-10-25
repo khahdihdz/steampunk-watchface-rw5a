@@ -118,7 +118,7 @@ jobs:
           Remove-Item $face
           Get-FileHash "build\bin\steampunk-rw5a.bin" -Algorithm SHA256 |
             ForEach-Object { "$($_.Hash.ToLower())  steampunk-rw5a.bin" } |
-            Set-Content "build\bin\SHA256SUMS.txt"
+            Set-Content "build\bin\steampunk-rw5a.bin.sha256"
           Write-Host "kích thước: $($bytes.Length) byte"
 
       - name: Upload binary
@@ -127,7 +127,7 @@ jobs:
           name: watchface-bin
           path: |
             build/bin/steampunk-rw5a.bin
-            build/bin/SHA256SUMS.txt
+            build/bin/steampunk-rw5a.bin.sha256
           if-no-files-found: error
 
   verify:
@@ -153,4 +153,4 @@ jobs:
         run: |
           python scripts/check_bin.py build/bin/steampunk-rw5a.bin \
             --name "${{ env.FACE_TITLE }}"
-          cd build/bin && sha256sum -c SHA256SUMS.txt
+          cd build/bin && sha256sum -c steampunk-rw5a.bin.sha256

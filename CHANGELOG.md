@@ -3,6 +3,35 @@
 Định dạng theo [Keep a Changelog](https://keepachangelog.com/vi/1.1.0/),
 phiên bản theo [SemVer](https://semver.org/lang/vi/).
 
+## [3.1.0] — 2026-10-25
+
+### Thêm
+
+- **Bản `.bin` cài được** (`steampunk-rw5a.bin`): project EasyFace sinh từ
+  artwork, biên dịch bằng `compile.exe` của Mi-Create cho
+  `redmi_watch_5_active`, chạy trên `windows-latest`.
+- `scripts/binface.py`: dựng `face.fprj` + `images/`; nền bỏ trống mọi giá trị
+  động, 13 widget phủ giờ/phút/giây/thứ/ngày/tháng/năm/pin/bước/nhịp tim.
+- `scripts/validate_fprj.py` và `scripts/check_bin.py`: cổng kiểm tra schema
+  project và container sau biên dịch.
+- `.github/workflows/bin.yml`: render (ubuntu) → compile (windows) → verify;
+  `release.yml` gọi lại và đính `.bin` vào release.
+- `docs/watchface-bin.md`: pipeline, bảng lỗi compiler, rủi ro, cách tự build.
+
+### Sửa
+
+- `date_strip_layer` / `complications_layer` nhận `values=None` để render nền
+  không có số; thêm `static_composite()`.
+- `compile.exe` luôn ghi id mặc định — CI vá id 9 số vào offset `0x28` như
+  Mi-Create vẫn làm.
+
+### Ghi chú
+
+- Ảnh trong `imageList` bị giới hạn **256 màu** (lỗi `Colors count is more
+  than 256 pcs`), nên glyph được lượng tử hoá có dither.
+- Preview phải đúng **180×216** cho RW5A.
+- **Chưa kiểm thử trên thiết bị thật.**
+
 ## [3.0.0] — 2026-10-25
 
 ### Thay đổi

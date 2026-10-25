@@ -121,15 +121,20 @@ Hai bên sườn (x < 26 và x > 294) là **bộ máy lộ**.
 ```
 .
 ├── .github/workflows/ci.yml        # render + validate + kiểm tra tái lập
+├── .github/workflows/bin.yml       # FPRJ → compile.exe → .bin → verify
 ├── .github/workflows/release.yml   # tag v* → build → GitHub Release
 ├── assets/layout.json              # nguồn sự thật: khung, 7 đoạn, nhãn, layer
 ├── assets/palette.json             # bảng màu (đồng, thép xanh, ruby, LED)
 ├── docs/design-spec.md             # đặc tả thiết kế
 ├── docs/mi-watch-face-editor.md    # hướng dẫn dựng bản động
+├── docs/watchface-bin.md           # pipeline .bin + ràng buộc compiler + rủi ro
 ├── docs/preview.png · docs/rotation.gif
 ├── scripts/steampunk.py            # Canvas 3x, gradient, bộ máy, LED 7 đoạn
 ├── scripts/generate.py             # render artefact + mock-up + GIF
 ├── scripts/validate.py             # kiểm tra ràng buộc
+├── scripts/binface.py              # sinh project EasyFace cho compile.exe
+├── scripts/validate_fprj.py        # kiểm tra .fprj + ảnh
+├── scripts/check_bin.py            # kiểm tra container .bin
 ├── scripts/build.py                # zip tái lập + manifest + SHA256SUMS
 ├── Makefile · requirements.txt · README.md · PROMPT.md · LICENSE
 ```
@@ -172,6 +177,38 @@ In ra `✓ N kiểm tra đều đạt (320×385, bo góc 46px, LED 7 đoạn)`.
   `.zip`, `manifest.json`, `SHA256SUMS.txt`, `preview.png`, `rotation.gif`.
 - `--generate-notes`; **không** truyền `--target` khi tag đã tồn tại.
 
+### 6b. Bản `.bin` (mặt động cài được)
+
+Mục tiêu: release có `steampunk-rw5a.bin` là **mặt đồng hồ biên dịch thật**,
+không phải gói asset.
+
+- Không tự viết bộ nén. Ảnh trong container RW5A nén bằng codec riêng của SiFli;
+  chỉ `compile.exe` của [ooflet/Mi-Create](https://github.com/ooflet/Mi-Create)
+  (GPL-3.0) sinh đúng. **Không** commit hay phân phối lại `compile.exe`; CI tải
+  từ GitHub bằng blob API (`repos/ooflet/Mi-Create/git/blobs/<sha>`).
+- `scripts/binface.py` sinh project EasyFace: `face.fprj` +
+  `images/*.png`, `FaceProject DeviceType="3651"` (= `redmi_watch_5_active`),
+  tên ảnh **có đuôi `.png`** trong `Bitmap`/`BitmapList`.
+- Nền render bằng `static_composite()`: bỏ giờ, giây, ngày, ba số phức hợp.
+  Widget phủ lên: 4 chữ số giờ:phút + 2 giây (Shape 31, mỗi chữ số một widget,
+  `Index_Src` = `1000911`/`0911`/`1211`/`1111`/`1001911`/`1911`), thứ (`2012`,
+  Shape 31, 7 ảnh), ngày/tháng/năm (`1812`/`1012`/`0812`, Shape 32, xoá số 0),
+  pin/bước/nhịp tim (`0841`/`0821`/`0822`).
+- Ràng buộc bắt buộc đã kiểm chứng:
+  - ảnh trong `imageList` **≤ 256 màu** → lượng tử hoá `FASTOCTREE` + dither;
+  - preview **180×216**;
+  - `-b` nhận **file** `.fprj`; compiler ghi `.face` vào
+    `<projectdir>/output`;
+  - `compile.exe` luôn ghi id mặc định → vá 9 chữ số vào offset `0x28`;
+  - `unpack.exe` **không** hỗ trợ RW5A (`Watch detected: Undefined`) → không
+    dùng làm bước kiểm tra, thay bằng `scripts/check_bin.py`.
+- CI: `bin.yml` gồm `project` (ubuntu: render + `validate_fprj.py`) →
+  `binary` (windows: tải compiler, biên dịch, vá id) → `verify` (ubuntu:
+  `check_bin.py` + `sha256sum -c`). `release.yml` gọi qua `workflow_call` và
+  đính `.bin` + `.bin.sha256` vào release.
+- Tài liệu phải nói rõ: **chưa kiểm thử trên thiết bị thật**, cách cài chỉ là
+  cộng đồng (Mi Fitness mod / chặn lưu lượng), và đây không phải firmware.
+
 ### 7. Tiêu chí nghiệm thu
 
 - [ ] `make package VERSION=3.0.0` chạy < 60 s, không cảnh báo.
@@ -185,7 +222,10 @@ In ra `✓ N kiểm tra đều đạt (320×385, bo góc 46px, LED 7 đoạn)`.
       răng cưa.
 - [ ] Chữ tiếng Việt có dấu hiển thị đúng (không ô vuông).
 - [ ] Không pixel nội dung nào lọt ra ngoài bo góc.
-- [ ] README nói trung thực giới hạn "không có APK" + 2 cách sử dụng.
+- [ ] `steampunk-rw5a.bin` có magic `5AA53412`, ảnh nền 320×385, 13 widget,
+      id 9 chữ số; `check_bin.py` xanh.
+- [ ] README nói trung thực giới hạn "không có APK" + 3 cách sử dụng, và ghi rõ
+      bản `.bin` chưa được kiểm thử trên thiết bị thật.
 
 ### 8. Quy tắc chống ảo giác
 

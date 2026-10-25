@@ -14,8 +14,13 @@ permissions:
   contents: write
 
 jobs:
+  binary:
+    name: Build .bin
+    uses: ./.github/workflows/bin.yml
+
   release:
     name: Build & publish
+    needs: binary
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -61,6 +66,12 @@ jobs:
       - name: Verify checksums
         run: cd dist && sha256sum -c SHA256SUMS.txt
 
+      - name: Download compiled watch face
+        uses: actions/download-artifact@v4
+        with:
+          name: watchface-bin
+          path: build/bin
+
       - name: Publish release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -69,6 +80,8 @@ jobs:
             --title "Steampunk RW5A ${{ steps.version.outputs.value }}" \
             --generate-notes \
             "dist/steampunk-rw5a-${{ steps.version.outputs.value }}.zip" \
+            build/bin/steampunk-rw5a.bin \
+            build/bin/steampunk-rw5a.bin.sha256 \
             dist/manifest.json \
             dist/SHA256SUMS.txt \
             dist/preview/preview.png \
